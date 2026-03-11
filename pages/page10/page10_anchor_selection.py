@@ -1,6 +1,5 @@
-import os
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 
 from inventory.inventory_tracker import (
     recompute_usage_from_plan,
@@ -9,9 +8,8 @@ from inventory.inventory_tracker import (
 )
 
 from inventory.inventory_loader import (
-    load_inventory_excel,
+    load_inventory_sql,
     validate_inventory_data,
-    get_default_inventory_path,  
 )
 
 WHITE = "#FFFFFF"
@@ -32,7 +30,7 @@ class Page10AnchorSelection:
 
         self.inventory_status_label = None
 
-        self.row_models = [] 
+        self.row_models = []
 
         # Allowed spine levels for dropdown
         self.all_levels = (
@@ -54,8 +52,9 @@ class Page10AnchorSelection:
         self._popup_after_id = None
         self._popup_in_progress = False
 
-        self.level_rows = []  # list of ttk.Frame, one per row
-        self._loading_state = False  # used for restore (see below)
+        self.level_rows = []
+        self._loading_state = False
+        self._last_changed_side = None  # tracks (row_model_index, side) of last selection
 
 
     def setup(self):
@@ -109,7 +108,7 @@ class Page10AnchorSelection:
         self.level_vars = []
         self.level_combos = []
         self.row_models = []
-        self.level_rows = []    
+        self.level_rows = []
 
         self._restore_from_plan_data()
         self._update_remove_buttons()
@@ -120,19 +119,20 @@ class Page10AnchorSelection:
 
         ttk.Button(
             inv_frame,
-            text="Reload Inventory Excel",
+            text="Reload Inventory from Database",
             style="Green.TButton",
-            command=self._on_load_inventory_excel
+            command=self._on_reload_inventory
         ).pack(anchor="w", padx=10, pady=10)
 
         self.inventory_status_label = tk.Label(
             inv_frame,
-            text="No inventory file loaded.",
+            text="Inventory not loaded.",
             font=("Segoe UI", 10),
             bg=WHITE
         )
         self.inventory_status_label.pack(anchor="w", padx=10, pady=(0, 10))
-        self._try_load_default_inventory()
+
+        self._try_load_inventory()
 
     # -------------------------
     # Navigation
@@ -142,6 +142,21 @@ class Page10AnchorSelection:
         if len(selected_levels) < 2:
             messagebox.showwarning("Incomplete", "Please select at least 2 levels before continuing.")
             return
+
+        missing = self._get_missing_required_fields()
+        if missing:
+            msg = (
+                "Accurately entering the requested data allows:\n"
+                "• Level Selection Recommendation\n"
+                "• Rod Length Prediction\n"
+                "• Rod Bending Instructions\n\n"
+                "Missing fields:\n"
+                + "\n".join(f"• {m}" for m in missing)
+                + "\n\nContinue anyway?"
+            )
+            go_on = messagebox.askyesno("Incomplete Anchor Selection", msg)
+            if not go_on:
+                return
 
         self.app.setup_page_11()
 
@@ -184,7 +199,6 @@ class Page10AnchorSelection:
         )
         btn_remove.grid(row=0, column=3, sticky="e", padx=(12, 0))
 
-        # Layout spacing
         row.grid_columnconfigure(0, weight=0)
         row.grid_columnconfigure(1, weight=0)
         row.grid_columnconfigure(2, weight=1)
@@ -194,7 +208,6 @@ class Page10AnchorSelection:
 
         if not self._loading_state:
             self._persist_levels_and_anchors()
-
 
     def remove_top_row(self):
         if len(self.level_vars) <= 1:
@@ -233,28 +246,22 @@ class Page10AnchorSelection:
     def _relabel_rows(self):
         for i, combo in enumerate(self.level_combos, start=1):
             row = combo.master
-            kids = row.winfo_children()
-            if kids:
-                # The first label is "Level X:"
-                for w in kids:
-                    if isinstance(w, ttk.Label) and w.cget("text").startswith("Level "):
-                        w.configure(text=f"Level {i}:")
-                        break
-    
+            for w in row.winfo_children():
+                if isinstance(w, ttk.Label) and w.cget("text").startswith("Level "):
+                    w.configure(text=f"Level {i}:")
+                    break
+
     def remove_specific_row(self, row_frame: ttk.Frame):
         if len(self.level_vars) <= 1:
             return
 
-        # find index
         try:
             idx = self.level_rows.index(row_frame)
         except ValueError:
             return
 
-        # destroy UI
         row_frame.destroy()
 
-        # remove from parallel lists
         self.level_rows.pop(idx)
         self.level_vars.pop(idx)
         self.level_combos.pop(idx)
@@ -283,7 +290,6 @@ class Page10AnchorSelection:
                 break
             seen.add(v)
 
-        # Apply S2AI constraints row-by-row
         for i, level_var in enumerate(self.level_vars):
             level = level_var.get().strip()
             if i < len(self.row_models):
@@ -299,23 +305,20 @@ class Page10AnchorSelection:
             self.btn_remove_bottom.configure(state=state)
 
     # -------------------------
-    # Mousewheel support: level combobox
+    # Mousewheel support
     # -------------------------
     def _bind_mousewheel_combo(self, combo: ttk.Combobox):
         def on_wheel(event):
             vals = list(combo["values"])
             if not vals:
                 return "break"
-
             cur = combo.get().strip()
             try:
                 i = vals.index(cur)
             except ValueError:
                 i = 0
-
             step = -1 if getattr(event, "delta", 0) > 0 else 1
             new_i = max(0, min(len(vals) - 1, i + step))
-
             combo.set(vals[new_i])
             self._on_level_change()
             return "break"
@@ -328,11 +331,9 @@ class Page10AnchorSelection:
     # Anchor planners per row
     # -------------------------
     def _build_side_planners(self, parent_row: ttk.Frame):
-
         block = ttk.Frame(parent_row)
         block.grid(row=0, column=2, sticky="ew", padx=(16, 0))
 
-        # Header
         ttk.Label(block, text="Left", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w", padx=(0, 10))
         ttk.Label(block, text="Right", font=("Segoe UI", 10, "bold")).grid(row=0, column=1, sticky="w", padx=(0, 10))
 
@@ -345,18 +346,15 @@ class Page10AnchorSelection:
         return {"left": left, "right": right}
 
     def _build_one_side(self, parent: ttk.Frame, col: int):
-
         frame = ttk.Frame(parent)
         frame.grid(row=1, column=col, sticky="ew", padx=(0, 14))
 
-        # Anchor type
         anchor_var = tk.StringVar(value="None")
         ttk.Label(frame, text="Anchor", font=("Segoe UI", 10)).grid(row=0, column=0, sticky="w")
         anchor_combo = ttk.Combobox(frame, textvariable=anchor_var, values=self.anchor_types_general, state="readonly", width=10)
         anchor_combo.grid(row=0, column=1, sticky="w", padx=(8, 0))
         anchor_combo.bind("<<ComboboxSelected>>", lambda e: self._on_anchor_type_change())
 
-        # Screw selectors (initially hidden)
         screw_type_var = tk.StringVar(value="")
         dia_var = tk.StringVar(value="")
         len_var = tk.StringVar(value="")
@@ -386,7 +384,6 @@ class Page10AnchorSelection:
         len_combo.grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
         len_combo.bind("<<ComboboxSelected>>", lambda e: self._on_length_change(frame))
 
-        # Tap checkbox appears only when type+dia+len selected
         tap_frame = ttk.Frame(frame)
         tap_frame.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
@@ -398,7 +395,6 @@ class Page10AnchorSelection:
             self._persist_levels_and_anchors()
 
         tap_check = ttk.Checkbutton(tap_frame, text="Tap", variable=tap_var, command=on_tap_toggle)
-
         tap_check.grid(row=0, column=0, sticky="w")
 
         tap_label = ttk.Label(tap_frame, text="", font=("Segoe UI", 10))
@@ -435,10 +431,8 @@ class Page10AnchorSelection:
 
         return {
             "frame": frame,
-
             "anchor_var": anchor_var,
             "anchor_combo": anchor_combo,
-
             "screw_frame": screw_frame,
             "screw_type_var": screw_type_var,
             "screw_type_combo": screw_type_combo,
@@ -446,27 +440,20 @@ class Page10AnchorSelection:
             "dia_combo": dia_combo,
             "len_var": len_var,
             "len_combo": len_combo,
-
             "tap_frame": tap_frame,
             "tap_var": tap_var,
             "tap_check": tap_check,
             "tap_label": tap_label,
-
             "hook_frame": hook_frame,
             "hook_var": hook_var,
             "hook_combo": hook_combo,
-
             "tape_frame": tape_frame,
             "tape_var": tape_var,
             "tape_combo": tape_combo,
-
             "notes": notes,
         }
 
     def _on_anchor_type_change(self):
-        """
-        Show/hide screw/hook/tape blocks based on each side selection.
-        """
         for model in self.row_models:
             for side in ("left", "right"):
                 sm = model[side]
@@ -489,7 +476,6 @@ class Page10AnchorSelection:
         self._persist_levels_and_anchors()
 
     def _apply_level_constraints_to_row(self, row_model: dict, level: str):
-
         is_s2ai = (level == "S2AI")
         for side in ("left", "right"):
             sm = row_model[side]
@@ -539,7 +525,6 @@ class Page10AnchorSelection:
 
     def _refresh_screw_type_and_dims_for_side(self, sm: dict):
         if not self._inventory_loaded():
-            # no inventory
             sm["dia_combo"].configure(values=[])
             sm["len_combo"].configure(values=[])
             return
@@ -547,7 +532,6 @@ class Page10AnchorSelection:
         cur_type = sm["screw_type_var"].get().strip()
         if not cur_type:
             sm["screw_type_var"].set("Polyaxial")
-            cur_type = "Polyaxial"
 
         self._refresh_diams_for_side(sm)
         self._refresh_lengths_for_side(sm)
@@ -567,8 +551,7 @@ class Page10AnchorSelection:
         cur_d = sm["dia_var"].get().strip()
         if cur_d:
             try:
-                cd = float(cur_d)
-                if cd not in diams:
+                if float(cur_d) not in diams:
                     sm["dia_var"].set("")
             except Exception:
                 sm["dia_var"].set("")
@@ -598,14 +581,12 @@ class Page10AnchorSelection:
         cur_L = sm["len_var"].get().strip()
         if cur_L:
             try:
-                cL = int(float(cur_L))
-                if cL not in lengths:
+                if int(float(cur_L)) not in lengths:
                     sm["len_var"].set("")
             except Exception:
                 sm["len_var"].set("")
 
     def _on_screw_type_change(self, side_frame: ttk.Frame):
-        # find the model for this side_frame, then refresh dims
         sm = self._find_side_model_by_frame(side_frame)
         if sm is None:
             return
@@ -635,6 +616,8 @@ class Page10AnchorSelection:
             return
         self._update_tap_visibility(sm)
         self._update_tap_label(sm)
+        # Record this as the last side touched
+        self._last_changed_side = sm
         self._persist_levels_and_anchors()
 
     def _update_tap_visibility(self, sm: dict):
@@ -659,13 +642,9 @@ class Page10AnchorSelection:
         except Exception:
             sm["tap_label"].configure(text="")
             return
-        tap_d = dia - 1.0
-        sm["tap_label"].configure(text=f"Tap diameter = {tap_d:.1f} mm")
+        sm["tap_label"].configure(text=f"Tap diameter = {dia - 1.0:.1f} mm")
 
     def _find_side_model_by_frame(self, frame: ttk.Frame):
-        """
-        Finds side model dict given the side frame widget.
-        """
         for rm in self.row_models:
             for side in ("left", "right"):
                 if rm[side]["frame"] == frame:
@@ -687,7 +666,6 @@ class Page10AnchorSelection:
             level = level_var.get().strip()
             if not level or i >= len(self.row_models):
                 continue
-
             rm = self.row_models[i]
             anchors[level] = {
                 "left": self._serialize_side(rm["left"]),
@@ -699,10 +677,8 @@ class Page10AnchorSelection:
         if not self._loading_state:
             self._update_inventory_warnings()
 
-
     def _serialize_side(self, sm: dict):
         anchor = sm["anchor_var"].get().strip()
-
         notes = sm["notes"].get("1.0", "end").strip()
 
         if anchor == "Screw":
@@ -727,11 +703,8 @@ class Page10AnchorSelection:
                 "notes": notes,
             }
 
-        return {
-            "anchor_type": "None",
-            "notes": notes,
-        }
-    
+        return {"anchor_type": "None", "notes": notes}
+
     def _restore_from_plan_data(self):
         ap = self.app.plan_data.get("anchor_planning", {})
         saved_levels = ap.get("levels", [])
@@ -762,17 +735,13 @@ class Page10AnchorSelection:
 
                 self._apply_side_data(rm["left"], level_data.get("left", {}))
                 self._apply_side_data(rm["right"], level_data.get("right", {}))
-
-                # Re-apply constraints after loading
                 self._apply_level_constraints_to_row(rm, level)
 
             self._on_level_change()
         finally:
             self._loading_state = False
 
-        # Persist once at end
         self._persist_levels_and_anchors()
-
 
     def _apply_side_data(self, sm: dict, data: dict):
         if not isinstance(data, dict):
@@ -784,7 +753,6 @@ class Page10AnchorSelection:
 
         sm["anchor_var"].set(anchor_type)
 
-        # Notes
         notes = data.get("notes", "")
         try:
             sm["notes"].delete("1.0", "end")
@@ -792,7 +760,6 @@ class Page10AnchorSelection:
         except Exception:
             pass
 
-        # Hide all blocks first
         sm["screw_frame"].grid_remove()
         sm["hook_frame"].grid_remove()
         sm["tape_frame"].grid_remove()
@@ -800,12 +767,10 @@ class Page10AnchorSelection:
 
         if anchor_type == "Screw":
             sm["screw_frame"].grid()
-
             sm["screw_type_var"].set((data.get("screw_type") or "").strip())
             sm["dia_var"].set(str(data.get("diameter_mm") or "").strip())
             sm["len_var"].set(str(data.get("length_mm") or "").strip())
             sm["tap_var"].set(bool(data.get("tap", False)))
-
             self._refresh_diams_for_side(sm)
             self._refresh_lengths_for_side(sm)
             self._update_tap_visibility(sm)
@@ -819,17 +784,10 @@ class Page10AnchorSelection:
             sm["tape_frame"].grid()
             sm["tape_var"].set((data.get("tape_type") or "").strip())
 
-
     # -------------------------
     # Inventory warnings
     # -------------------------
-
     def _update_inventory_warnings(self):
-        """
-        Recompute screw usage from plan_data.
-        Print warnings to terminal and show popup ONLY for newly-appeared overages.
-        Uses Tk 'after' to avoid macOS Tk crashes from showing a modal dialog inside widget callbacks.
-        """
         if not hasattr(self.app, "inventory_totals") or not isinstance(self.app.inventory_totals, dict):
             return
         if len(self.app.inventory_totals) == 0:
@@ -854,7 +812,6 @@ class Page10AnchorSelection:
             print("No overages detected.")
             self.app.inventory_overage_messages = []
             self._last_overage_keys = set()
-
             if self._popup_after_id is not None and root is not None:
                 try:
                     root.after_cancel(self._popup_after_id)
@@ -889,13 +846,18 @@ class Page10AnchorSelection:
                     pass
                 self._popup_after_id = None
 
-            def _show_popup():
+            captured_side = self._last_changed_side
+
+            def _show_popup(new_keys=new_keys, over=over, captured_side=captured_side):
                 self._popup_after_id = None
                 if self._popup_in_progress:
                     return
                 self._popup_in_progress = True
                 try:
-                    messagebox.showwarning("Inventory Overages Detected", popup_text)
+                    keep = self._ask_overage(popup_text)
+                    if not keep:
+                        self._last_changed_side = captured_side
+                        self._clear_overage_selections(new_keys, over)
                 finally:
                     self._popup_in_progress = False
 
@@ -903,17 +865,81 @@ class Page10AnchorSelection:
 
         self._last_overage_keys = current_keys
 
-    # -------------------------
-    # Inventory excel file selection
-    # -------------------------
+    def _ask_overage(self, message: str) -> bool:
+        """
+        Custom dialog replacing askyesno so we can label the buttons ourselves.
+        Returns True = keep selection, False = clear selection.
+        """
+        result = [True]  # default: keep
 
-    def _load_inventory_from_path(self, path: str):
-        totals, rows = load_inventory_excel(path)
+        dlg = tk.Toplevel()
+        dlg.title("Inventory Overage Detected")
+        dlg.resizable(False, False)
+        dlg.grab_set()
+
+        tk.Label(dlg, text=message, justify="left", wraplength=420,
+                 font=("Segoe UI", 10), padx=20, pady=16).pack()
+
+        btn_frame = tk.Frame(dlg)
+        btn_frame.pack(pady=(0, 16))
+
+        def on_keep():
+            result[0] = True
+            dlg.destroy()
+
+        def on_clear():
+            result[0] = False
+            dlg.destroy()
+
+        tk.Button(btn_frame, text="Keep & Contact Supplier",
+                  width=24, command=on_keep).pack(side="left", padx=8)
+        tk.Button(btn_frame, text="Clear Selection",
+                  width=18, command=on_clear).pack(side="left", padx=8)
+
+        dlg.update_idletasks()
+        w, h = dlg.winfo_width(), dlg.winfo_height()
+        sw, sh = dlg.winfo_screenwidth(), dlg.winfo_screenheight()
+        dlg.geometry(f"+{(sw - w) // 2}+{(sh - h) // 2}")
+
+        dlg.wait_window()
+        return result[0]
+
+    def _clear_overage_selections(self, overage_keys: set, over: list):
+        """
+        Clears only the most recently changed screw selection that caused the overage.
+        """
+        sm = self._last_changed_side
+        if sm is None:
+            return
+
+        self._loading_state = True
+        try:
+            sm["screw_type_var"].set("")
+            sm["dia_var"].set("")
+            sm["len_var"].set("")
+            sm["tap_var"].set(False)
+            sm["tap_label"].configure(text="")
+            sm["tap_frame"].grid_remove()
+            sm["anchor_var"].set("None")
+            sm["screw_frame"].grid_remove()
+            self._refresh_diams_for_side(sm)
+            self._refresh_lengths_for_side(sm)
+        finally:
+            self._loading_state = False
+
+        self._last_changed_side = None
+        self._persist_levels_and_anchors()
+
+    # -------------------------
+    # Inventory loading (SQL)
+    # -------------------------
+    def _load_inventory(self):
+        """Load inventory directly from SQL Server. No file needed."""
+        totals, rows = load_inventory_sql()
         ok, msg, _stats = validate_inventory_data(totals, rows)
         if not ok:
             raise ValueError(msg)
 
-        self.app.inventory_file_path = path
         self.app.inventory_totals = totals
         self.app.inventory_rows = rows
 
@@ -933,62 +959,28 @@ class Page10AnchorSelection:
         self._last_overage_keys = set()
         self._persist_levels_and_anchors()
 
-
-    def _try_load_default_inventory(self):
+    def _try_load_inventory(self):
+        """Silently attempt to load inventory on page open."""
         try:
-            path = get_default_inventory_path()
-            if not path or not os.path.exists(path):
-                if self.inventory_status_label is not None:
-                    self.inventory_status_label.configure(
-                        text="Default inventory file not found in repo."
-                    )
-                return
-
-            self._load_inventory_from_path(path)
-
+            if self.inventory_status_label is not None:
+                self.inventory_status_label.configure(text="Connecting to database...")
+            self._load_inventory()
         except Exception as e:
             if self.inventory_status_label is not None:
                 self.inventory_status_label.configure(
-                    text=f"Default inventory load failed: {e}"
+                    text=f"Inventory load failed: {e}"
                 )
-                
-    def _on_load_inventory_excel(self):
-        path = filedialog.askopenfilename(
-            title="Select Inventory Excel File",
-            filetypes=[("Excel files", "*.xlsx *.xlsm"), ("All files", "*.*")]
-        )
-        if not path:
-            return
 
+    def _on_reload_inventory(self):
+        """Called when user clicks 'Reload Inventory from Database'."""
         try:
-            self._load_inventory_from_path(path)
+            self._load_inventory()
         except Exception as e:
             messagebox.showerror("Inventory Load Failed", str(e))
 
-    def _next_to_page_11_soft_stop(self):
-        selected_levels = [v.get().strip() for v in self.level_vars if v.get().strip()]
-        if len(selected_levels) < 2:
-            messagebox.showwarning("Incomplete", "Please select at least 2 levels before continuing.")
-            return
-
-        missing = self._get_missing_required_fields()
-        if missing:
-            msg = (
-                "Accurately entering the requested data allows:\n"
-                "• Level Selection Recommendation\n"
-                "• Rod Length Prediction\n"
-                "• Rod Bending Instructions\n\n"
-                "Missing fields:\n"
-                + "\n".join(f"• {m}" for m in missing)
-                + "\n\nContinue anyway?"
-            )
-            go_on = messagebox.askyesno("Incomplete Anchor Selection", msg)
-            if not go_on:
-                return  # Return to Anchor Selection (stay on page 10)
-
-        self.app.setup_page_11()
-
-
+    # -------------------------
+    # Missing fields check
+    # -------------------------
     def _get_missing_required_fields(self):
         missing = []
 
@@ -1007,14 +999,11 @@ class Page10AnchorSelection:
                     continue
 
                 if anchor == "Screw":
-                    st = sm["screw_type_var"].get().strip()
-                    d = sm["dia_var"].get().strip()
-                    L = sm["len_var"].get().strip()
-                    if not st:
+                    if not sm["screw_type_var"].get().strip():
                         missing.append(f"{level} [{side_name}]: Screw type missing")
-                    if not d:
+                    if not sm["dia_var"].get().strip():
                         missing.append(f"{level} [{side_name}]: Diameter missing")
-                    if not L:
+                    if not sm["len_var"].get().strip():
                         missing.append(f"{level} [{side_name}]: Length missing")
 
                 if anchor == "Hook":
