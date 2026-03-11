@@ -104,7 +104,6 @@ class Page10AnchorSelection:
         self.levels_frame = ttk.Frame(container)
         self.levels_frame.pack(fill="x", padx=10, pady=10)
 
-        # reset state each time
         self.level_vars = []
         self.level_combos = []
         self.row_models = []
@@ -500,7 +499,7 @@ class Page10AnchorSelection:
                 sm["screw_type_combo"].configure(values=self.screw_types_general, state="readonly")
 
     # -------------------------
-    # Screw filtering (uses inventory if loaded)
+    # Screw filtering
     # -------------------------
     def _inventory_loaded(self) -> bool:
         return hasattr(self.app, "inventory_totals") and isinstance(self.app.inventory_totals, dict) and len(self.app.inventory_totals) > 0
@@ -834,7 +833,7 @@ class Page10AnchorSelection:
                 if tuple(o["key"]) in new_keys:
                     t, d, L = o["key"]
                     popup_msgs.append(
-                        f"⚠️ Warning: {o['used']} screws of type {d} × {L} mm {t} exceed stock ({o['available']} available)"
+                        f"Warning: {o['used']} screws of type {d} × {L} mm {t} exceed stock ({o['available']} available)"
                     )
 
             popup_text = "\n".join(popup_msgs)
@@ -866,10 +865,6 @@ class Page10AnchorSelection:
         self._last_overage_keys = current_keys
 
     def _ask_overage(self, message: str) -> bool:
-        """
-        Custom dialog replacing askyesno so we can label the buttons ourselves.
-        Returns True = keep selection, False = clear selection.
-        """
         result = [True]  # default: keep
 
         dlg = tk.Toplevel()
@@ -934,7 +929,6 @@ class Page10AnchorSelection:
     # Inventory loading (SQL)
     # -------------------------
     def _load_inventory(self):
-        """Load inventory directly from SQL Server. No file needed."""
         totals, rows = load_inventory_sql()
         ok, msg, _stats = validate_inventory_data(totals, rows)
         if not ok:
@@ -946,7 +940,7 @@ class Page10AnchorSelection:
         if self.inventory_status_label is not None:
             self.inventory_status_label.configure(text=msg)
 
-        # Refresh dropdowns for already-selected screw blocks
+        # Refresh dropdowns 
         for rm in self.row_models:
             for side in ("left", "right"):
                 sm = rm[side]
@@ -960,7 +954,6 @@ class Page10AnchorSelection:
         self._persist_levels_and_anchors()
 
     def _try_load_inventory(self):
-        """Silently attempt to load inventory on page open."""
         try:
             if self.inventory_status_label is not None:
                 self.inventory_status_label.configure(text="Connecting to database...")
@@ -972,7 +965,6 @@ class Page10AnchorSelection:
                 )
 
     def _on_reload_inventory(self):
-        """Called when user clicks 'Reload Inventory from Database'."""
         try:
             self._load_inventory()
         except Exception as e:
