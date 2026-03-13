@@ -296,6 +296,10 @@ def compute_stf_stage(p: Dict[FieldRef, Any], lenke_type: str, lumbar_modifier: 
             data={
                 "stf_eligible": "No",
                 "stf_reasons": ["Not evaluated: STF (this rule) applies to Lenke 1–3 with Lumbar modifier C."],
+                "stf_passed_count": 0,
+                "stf_total_count": 0,
+                "stf_suggestion": "",
+                "stf_suggestion_note": "",
             },
         )
 
@@ -334,12 +338,59 @@ def compute_stf_stage(p: Dict[FieldRef, Any], lenke_type: str, lumbar_modifier: 
     checks.append((trunk_shift == "Right", "Trunk shift = Right"))
     checks.append((lord_disc == "Yes", "Lordotic disc below MT-LTV = Yes"))
 
+    passed_count = sum(1 for ok, _ in checks if ok)
+    total_count = len(checks)
+
+    variant_vertebral_anatomy = norm_yes_no(
+        p.get(("additional_standing_coronal", "variant_vertebral_anatomy"))
+    )
+    lumbar_variant_type = _s(
+        p.get(("additional_standing_coronal", "lumbar_variant_type"))
+    )
+
+    suggestion_score = passed_count
+    stf_suggestion_note = ""
+
+    if variant_vertebral_anatomy == "Yes" and lumbar_variant_type == "4 lumbar vertebrae":
+        suggestion_score += 1
+        stf_suggestion_note = "STF suggestion increased due to 4 lumbar vertebrae."
+    elif variant_vertebral_anatomy == "Yes" and lumbar_variant_type == "6 lumbar vertebrae":
+        stf_suggestion_note = "6 lumbar vertebrae present, no STF suggestion change."
+
+    if suggestion_score >= 6:
+        stf_suggestion = "Strong STF consideration"
+    elif suggestion_score >= 4:
+        stf_suggestion = "Moderate STF consideration"
+    else:
+        stf_suggestion = "Low STF consideration"
+
     failed = [msg for ok, msg in checks if not ok]
     if not failed:
-        return StageResult(ok=True, missing=[], data={"stf_eligible": "Yes", "stf_reasons": ["All Baldwin STF criteria met."]})
+        return StageResult(
+            ok=True,
+            missing=[],
+            data={
+                "stf_eligible": "Yes",
+                "stf_reasons": ["All Baldwin STF criteria met."],
+                "stf_passed_count": passed_count,
+                "stf_total_count": total_count,
+                "stf_suggestion": stf_suggestion,
+                "stf_suggestion_note": stf_suggestion_note,
+            },
+        )
 
-    return StageResult(ok=True, missing=[], data={"stf_eligible": "No", "stf_reasons": ["Not eligible: " + "; ".join(failed)]})
-
+    return StageResult(
+        ok=True,
+        missing=[],
+        data={
+            "stf_eligible": "No",
+            "stf_reasons": ["Not eligible: " + "; ".join(failed)],
+            "stf_passed_count": passed_count,
+            "stf_total_count": total_count,
+            "stf_suggestion": stf_suggestion,
+            "stf_suggestion_note": stf_suggestion_note,
+        },
+    )
 
 # -----------------------------
 # Stage 4: LIV 

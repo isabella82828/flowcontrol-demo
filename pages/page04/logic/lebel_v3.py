@@ -109,6 +109,7 @@ def compute_lebel_v3(inputs: Dict[str, Any]) -> Dict[str, Any]:
     uev       = (inputs.get("uev") or "").strip()                  # Used for Lenke 5
     risser = _i(inputs.get("risser_score"))
     variant_vertebral_anatomy = (inputs.get("variant_vertebral_anatomy") or "").strip()
+    lumbar_variant_type = (inputs.get("lumbar_variant_type") or "").strip()
 
     # STF-related
     mt_apical_trans  = _f(inputs.get("mt_apical_translation_mm"))
@@ -266,6 +267,10 @@ def compute_lebel_v3(inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     stf_eligible = "No"
     stf_reasons: List[str] = []
+    stf_passed_count = 0
+    stf_total_count = 0
+    stf_suggestion = ""
+    stf_suggestion_note = ""
 
     if stf_possible:
         stf_criteria = [
@@ -280,6 +285,23 @@ def compute_lebel_v3(inputs: Dict[str, Any]) -> Dict[str, Any]:
         ]
         for name, ok in stf_criteria:
             stf_reasons.append(("✓ " if ok else "✗ ") + name)
+
+        stf_passed_count = sum(1 for _, ok in stf_criteria if ok)
+        stf_total_count = len(stf_criteria)
+
+        suggestion_score = stf_passed_count
+        if variant_vertebral_anatomy == "Yes" and lumbar_variant_type == "4 lumbar vertebrae":
+            suggestion_score += 1
+            stf_suggestion_note = "STF suggestion increased due to 4 lumbar vertebrae."
+        elif variant_vertebral_anatomy == "Yes" and lumbar_variant_type == "6 lumbar vertebrae":
+            stf_suggestion_note = "6 lumbar vertebrae present, no STF suggestion change."
+
+        if suggestion_score >= 6:
+            stf_suggestion = "Strong STF consideration"
+        elif suggestion_score >= 4:
+            stf_suggestion = "Moderate STF consideration"
+        else:
+            stf_suggestion = "Low STF consideration"
 
         all_ok = all(ok for _, ok in stf_criteria)
         if all_ok and wants_stf == "Yes":
@@ -427,6 +449,11 @@ def compute_lebel_v3(inputs: Dict[str, Any]) -> Dict[str, Any]:
         "stf_possible": "Yes" if stf_possible else "No",
         "stf_eligible": stf_eligible,
         "stf_reasons": stf_reasons,
+        "stf_passed_count": stf_passed_count,
+        "stf_total_count": stf_total_count,
+        "stf_suggestion": stf_suggestion,
+        "stf_suggestion_note": stf_suggestion_note,
+
         "liv": liv or "—",
         "liv_rationale": liv_rationale,
         "liv_warning": liv_adjustment_note,

@@ -222,6 +222,20 @@ class Page04RadiographicAdaptive:
            default="No"
        )
 
+       self.variant_detail_lebel_frame = tk.Frame(lenke_lebel, bg=WHITE)
+       self.variant_detail_lebel_frame.pack(fill="x")
+
+       add_combo(
+            self.variant_detail_lebel_frame,
+            "Lumbar vertebral variant",
+            "additional_standing_coronal",
+            "lumbar_variant_type",
+            ["4 lumbar vertebrae", "6 lumbar vertebrae", "Other"],
+            width=20,
+            default="Other"
+        )
+
+
        # -----------------------------
        # Baldwin Lenke inputs (minimal)
        # -----------------------------
@@ -279,6 +293,21 @@ class Page04RadiographicAdaptive:
            default="No",
            write_default=False
        )
+
+       self.variant_detail_baldwin_frame = tk.Frame(lenke_baldwin, bg=WHITE)
+       self.variant_detail_baldwin_frame.pack(fill="x")
+
+       add_combo(
+            self.variant_detail_baldwin_frame,
+            "Lumbar vertebral variant",
+            "additional_standing_coronal",
+            "lumbar_variant_type",
+            ["4 lumbar vertebrae", "6 lumbar vertebrae", "Other"],
+            width=20,
+            default="Other",
+            write_default=False
+        )
+
 
        # Start with Baldwin hidden (Lebel default)
        self._hide(self.frames["lenke_baldwin"])
@@ -355,7 +384,8 @@ class Page04RadiographicAdaptive:
        # STF status text
        self.preview_vars["stf_eligible"] = tk.StringVar(value="—")
        ttk.Label(sec_stf, textvariable=self.preview_vars["stf_eligible"]).pack(anchor="w", padx=8, pady=(6, 2))
-
+       self.preview_vars["stf_summary"] = tk.StringVar(value="")
+       ttk.Label(sec_stf, textvariable=self.preview_vars["stf_summary"], wraplength=900, justify="left").pack(anchor="w", padx=8, pady=(0, 2))
 
        self.stf_box = tk.Text(sec_stf, height=6, wrap="word", font=("Segoe UI", 10))
        self.stf_box.pack(fill="x", padx=8, pady=(2, 8))
@@ -525,6 +555,9 @@ class Page04RadiographicAdaptive:
        self._hide(self.liv_36_frame)
        self._hide(self.liv_lebel_s1_frame)
        self._hide(self.liv_lebel_12_frame)
+       self._hide(self.variant_detail_lebel_frame)
+       self._hide(self.variant_detail_baldwin_frame)
+
 
        # Initial compute
        self.refresh()
@@ -588,6 +621,7 @@ class Page04RadiographicAdaptive:
            "uev": add_stand.get("tll_uev"),
            "risser_score": stand.get("risser_score"),
            "variant_vertebral_anatomy": add_stand.get("variant_vertebral_anatomy"),
+           "lumbar_variant_type": add_stand.get("lumbar_variant_type"),
 
 
            # STF
@@ -651,6 +685,16 @@ class Page04RadiographicAdaptive:
             self._hide(self.frames["lenke_lebel"])
             self._show(self.frames["lenke_baldwin"])
 
+            variant_flag = self.app.plan_data.get("radiographic_parameters", {}) \
+            .get("additional_standing_coronal", {}) \
+            .get("variant_vertebral_anatomy", "No")
+
+            if variant_flag == "Yes":
+                if not self.variant_detail_baldwin_frame.winfo_ismapped():
+                    self.variant_detail_baldwin_frame.pack(fill="x")
+            else:
+                self.variant_detail_baldwin_frame.pack_forget()
+
             present = self._present_for_baldwin()
             results = compute_baldwin_v2(present)
             
@@ -681,9 +725,24 @@ class Page04RadiographicAdaptive:
                 self.preview_vars["stf_eligible"].set(
                     f"STF eligible: {results.get('stf_eligible', '—')}"
                 )
+
+                passed = results.get("stf_passed_count", 0)
+                total = results.get("stf_total_count", 0)
+                suggestion = results.get("stf_suggestion", "")
+                note = results.get("stf_suggestion_note", "")
+
+                summary = f"STF criteria met: {passed}/{total}"
+                if suggestion:
+                    summary += f" | {suggestion}"
+                if note:
+                    summary += f" | {note}"
+
+                self.preview_vars["stf_summary"].set(summary)
                 self._fill_text(self.stf_box, results.get("stf_reasons", []))
+           
             else:
                 self._hide(self.sections["stf"])
+                self.preview_vars["stf_summary"].set("")
 
             if sections.get("slf"):
                 self._show(self.sections["slf"])
@@ -777,6 +836,16 @@ class Page04RadiographicAdaptive:
             }
             return
 
+        variant_flag = self.app.plan_data.get("radiographic_parameters", {}) \
+            .get("additional_standing_coronal", {}) \
+            .get("variant_vertebral_anatomy", "No")
+
+        if variant_flag == "Yes":
+            if not self.variant_detail_lebel_frame.winfo_ismapped():
+                self.variant_detail_lebel_frame.pack(fill="x")
+        else:
+            self.variant_detail_lebel_frame.pack_forget()
+
         inputs = self._flatten_inputs_for_lebel()
         results = compute_lebel_v3(inputs)
         lenke = results.get("lenke_type")
@@ -809,9 +878,23 @@ class Page04RadiographicAdaptive:
             self.preview_vars["stf_eligible"].set(
                 f"STF eligible: {results.get('stf_eligible')}"
             )
+
+            passed = results.get("stf_passed_count", 0)
+            total = results.get("stf_total_count", 0)
+            suggestion = results.get("stf_suggestion", "")
+            note = results.get("stf_suggestion_note", "")
+
+            summary = f"STF criteria met: {passed}/{total}"
+            if suggestion:
+                summary += f" | {suggestion}"
+            if note:
+                summary += f" | {note}"
+
+            self.preview_vars["stf_summary"].set(summary)
             self._fill_text(self.stf_box, results.get("stf_reasons", []))
         else:
             self._hide(self.sections["stf"])
+            self.preview_vars["stf_summary"].set("")
 
         # LIV visibility
         if results.get("lenke_type") not in ("Unclassified", None, ""):
