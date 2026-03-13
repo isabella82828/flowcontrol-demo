@@ -1,11 +1,6 @@
 # FlowControl – Surgical Planning Application
-
-## Project Title and Description
-
-**Title:**  
-FlowControl – Surgical Planning Application
-
-**Brief Description:**  
+ 
+**Description:**  
 FlowControl is an application designed for surgical planning workflows for scoliosis procedures. The application provides structured data entry for radiographic parameters, automated curve classification, and decision-support tools for instrumentation planning.
 
 It integrates radiographic analysis, implant inventory tracking, and multi-step surgical planning in a single workflow-driven interface.
