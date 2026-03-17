@@ -538,27 +538,57 @@ class FlowbiWanApp:
 
         return scrollable_frame
 
+    def _get_patient_folder_name(self) -> str:
+        patient = self.plan_data.get("patient", {})
+        op_id = str(patient.get("id") or "unknown").strip()
+        raw_date = str(patient.get("surgery_date") or "").strip()
+        try:
+            # Convert from YYYY-MM-DD to DDMMYYYY
+            from datetime import datetime
+            ddmmyyyy = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%d%m%Y")
+        except Exception:
+            ddmmyyyy = "00000000"
+        return f"{op_id}{ddmmyyyy}"
+        
     def upload_ct_folder(self):
         folder = filedialog.askdirectory()
         if folder:
+            from shared.shared_io import copy_dicom_folder, write_plan
             self.plan_data["ct_dicom_folder"] = folder
+            try:
+                patient_folder = self._get_patient_folder_name()
+                dest = copy_dicom_folder(folder, "ct", patient_folder)
+                self.plan_data["ct_dicom_shared_path"] = dest
+                write_plan(self.plan_data)  # ← keep exchange folder in sync
+                write_plan(self.plan_data, subfolder=patient_folder)  
+            except Exception as e:
+                messagebox.showwarning("Copy Warning", f"Could not copy CT folder to shared location:\n{e}")
             self.ct_label.config(text=f"Selected: {os.path.basename(folder)}")
             self.clear_ct_button.pack()
             self.is_dirty = True
 
+    def upload_rad_folder(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            from shared.shared_io import copy_dicom_folder, write_plan
+            self.plan_data["radiograph_dicom_folder"] = folder
+            try:
+                patient_folder = self._get_patient_folder_name()
+                dest = copy_dicom_folder(folder, "radiograph", patient_folder)
+                self.plan_data["radiograph_dicom_shared_path"] = dest
+                write_plan(self.plan_data) 
+                write_plan(self.plan_data, subfolder=patient_folder)  # ← updated
+            except Exception as e:
+                messagebox.showwarning("Copy Warning", f"Could not copy radiograph folder to shared location:\n{e}")
+            self.rad_label.config(text=f"Selected: {os.path.basename(folder)}")
+            self.clear_rad_button.pack()
+            self.is_dirty = True
+            
     def clear_ct_folder(self):
         self.plan_data.pop("ct_dicom_folder", None)
         self.ct_label.config(text="")
         self.clear_ct_button.pack_forget()
         self.is_dirty = True
-
-    def upload_rad_folder(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.plan_data["radiograph_dicom_folder"] = folder
-            self.rad_label.config(text=f"Selected: {os.path.basename(folder)}")
-            self.clear_rad_button.pack()
-            self.is_dirty = True
 
     def clear_rad_folder(self):
         self.plan_data.pop("radiograph_dicom_folder", None)

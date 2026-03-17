@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import subprocess, os
 
 from inventory.inventory_tracker import (
     recompute_usage_from_plan,
@@ -63,6 +64,31 @@ class Page10AnchorSelection:
             back_command=self.app.setup_page_6,
             next_command=self._next_to_page_11_soft_stop
         )
+
+        slicer_frame = ttk.LabelFrame(scrollable, text="4D Slicer")
+        slicer_frame.pack(fill="x", pady=(10, 10))
+
+        ttk.Button(
+            slicer_frame,
+            text="Launch 4D Slicer",
+            style="Green.TButton",
+            command=self._on_launch_slicer
+        ).pack(anchor="w", padx=10, pady=10)
+
+        ttk.Button(
+                    slicer_frame,
+                    text="Change Slicer Path",
+                    style="Light.TButton",
+                    command=self._on_browse_slicer
+                ).pack(anchor="w", padx=10, pady=(0, 10))
+                
+        self.slicer_status_label = tk.Label(
+            slicer_frame,
+            text="",
+            font=("Segoe UI", 10),
+            bg=WHITE
+        )
+        self.slicer_status_label.pack(anchor="w", padx=10, pady=(0, 10))
 
         ttk.Label(
             scrollable,
@@ -1007,3 +1033,69 @@ class Page10AnchorSelection:
                         missing.append(f"{level} [{side_name}]: Tape type missing")
 
         return missing
+    
+    # -------------------------
+    # Slicer launching
+    # -------------------------
+    def _find_slicer_exe(self) -> str:
+        import glob
+        import os
+
+        # Check saved path first
+        saved = self.app.plan_data.get("slicer_path", "")
+        if saved and os.path.exists(saved):
+            return saved
+
+        username = os.getlogin()
+
+        candidates = [
+            # ✅ YOUR EXACT FOLDER + correct exe name
+            rf"C:\Users\{username}\4D Slicer v1.2\Slicer.exe",
+
+            # More flexible (future-proof)
+            rf"C:\Users\{username}\4D Slicer*\Slicer.exe",
+
+            # Existing ones (keep these)
+            rf"C:\Users\{username}\AppData\Local\slicer.org\*\Slicer.exe",
+            r"C:\Program Files\*\Slicer.exe",
+            r"C:\Program Files (x86)\*\Slicer.exe",
+        ]
+
+        for pattern in candidates:
+            matches = glob.glob(pattern)
+            if matches:
+                return matches[0]
+
+        return ""
+
+    def _on_browse_slicer(self) -> str:
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(
+            title="Locate Slicer.exe",
+            filetypes=[("Executable", "*.exe")]
+        )
+        if path:
+            self.app.plan_data["slicer_path"] = path
+            self.app.is_dirty = True
+        return path
+
+    def _on_launch_slicer(self):
+        slicer_path = self._find_slicer_exe()
+
+        if not slicer_path:
+            self.slicer_status_label.configure(text="Slicer not found — please locate it.")
+            slicer_path = self._on_browse_slicer()
+
+        if not slicer_path:
+            self.slicer_status_label.configure(text="Slicer path not set.")
+            return
+
+        try:
+            subprocess.Popen([slicer_path])
+            self.slicer_status_label.configure(text=f"4D Slicer launched.")
+            # Save the found path for next time
+            self.app.plan_data["slicer_path"] = slicer_path
+            self.app.is_dirty = True
+        except Exception as e:
+            messagebox.showerror("Launch Failed", str(e))
+            self.slicer_status_label.configure(text=f"Launch failed: {e}")
