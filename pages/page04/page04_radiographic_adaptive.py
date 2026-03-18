@@ -7,6 +7,7 @@ from pages.page04.logic.baldwin_v2 import compute_baldwin_v2
 from pages.page04.help_popup import show_help_popup 
 from pages.page04.help_texts import get_help
 from pages.page04.help_texts import get_help_item
+from shared.shared_measurements import import_slicer_measurements_into_plan_data
 
 WHITE = "#FFFFFF"
 FONT = ("Segoe UI", 12)
@@ -76,6 +77,19 @@ class Page04RadiographicAdaptive:
            back_command=self.app.setup_page_3,
            next_command=self.on_next
        )
+       # -----------------------------
+       # Slicer Import Button
+       # -----------------------------
+       btn_frame = tk.Frame(scrollable, bg=WHITE)
+       btn_frame.pack(fill="x", pady=(4, 10), padx=6)
+       
+       tk.Button(
+            btn_frame,
+            text="Import Slicer Measurements",
+            font=("Segoe UI", 11, "bold"),
+            command=self.on_import_slicer_measurements,
+            bg="#E8F0FE"
+        ).pack(side="left")
 
        # -----------------------------
        # Helpers to add fields
@@ -103,7 +117,7 @@ class Page04RadiographicAdaptive:
                 self.refresh()
 
             var.trace_add("write", _on_write)
-            self.vars[(tab, key)] = var
+            self.vars.setdefault((tab, key), []).append(var)
             return var, row
 
        def add_combo(parent, label, tab, key, options, width=18, default=None,
@@ -129,7 +143,7 @@ class Page04RadiographicAdaptive:
                 self.refresh()
 
             cb.bind("<<ComboboxSelected>>", _on_select)
-            self.vars[(tab, key)] = var
+            self.vars.setdefault((tab, key), []).append(var)
 
             if write_default:
                 _rp_set(self.app, tab, key, var.get().strip())
@@ -979,7 +993,27 @@ class Page04RadiographicAdaptive:
        else:
            box.insert("1.0", str(content or ""))
        box.config(state="disabled")
-
+    
+   def _sync_vars_from_plan_data(self):
+       for (tab, key), var_list in self.vars.items():
+           new_value = _rp_get(self.app, tab, key, "")
+           for var in var_list:
+               if var.get() != new_value:
+                   var.set(new_value)
 
    def on_next(self):
        self.app.setup_page_5()
+   
+   def on_import_slicer_measurements(self):
+       success, message = import_slicer_measurements_into_plan_data(self.app.plan_data)
+
+       print("standing_coronal:", self.app.plan_data.get("radiographic_parameters", {}).get("standing_coronal", {}))
+       print("standing_sagittal:", self.app.plan_data.get("radiographic_parameters", {}).get("standing_sagittal", {}))
+
+       if success:
+           self.app.is_dirty = True
+           self._sync_vars_from_plan_data()
+           self.refresh()
+           print(message)
+       else:
+           print(message)
