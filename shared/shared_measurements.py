@@ -116,3 +116,96 @@ def import_slicer_measurements_into_plan_data(plan_data: dict, shared_root: str 
         return True, f"CSV read successfully, but no values were changed: {csv_path}"
 
     return True, f"Imported Slicer measurements from:\n{csv_path}"
+
+def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
+    patient_folder = get_latest_patient_folder(shared_root)
+    if not patient_folder:
+        return None
+
+    csv_path = os.path.join(patient_folder, "screw_info.csv")
+    if not os.path.exists(csv_path):
+        return None
+
+    return csv_path
+
+
+def import_screw_info_into_plan_data(plan_data: dict, shared_root: str = SHARED_FOLDER) -> tuple[bool, str]:
+    csv_path = get_screw_info_csv_path(shared_root)
+    if not csv_path:
+        return False, "No screw_info.csv found in the shared patient folder."
+
+    rows = []
+    try:
+        with open(csv_path, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+    except Exception as e:
+        return False, f"Failed to read screw_info.csv: {e}"
+
+    if not rows:
+        return False, f"screw_info.csv is empty: {csv_path}"
+
+    ap = plan_data.setdefault("anchor_planning", {})
+
+    levels_seen = []
+    anchors = {}
+
+    for row in rows:
+        level   = (row.get("Level")        or "").strip()
+        side    = (row.get("Side")         or "").strip().lower()   # "left" / "right"
+        cat     = (row.get("Category")     or "").strip()           # "Screw", "Hook", "Tape"
+        typ     = (row.get("Type")         or "").strip()
+        dia     = (row.get("Diameter (mm)") or "").strip()
+        length  = (row.get("Length (mm)")  or "").strip()
+        notes   = (row.get("Notes")        or "").strip()
+
+        if not level or side not in ("left", "right"):
+            continue
+
+        if level not in levels_seen:
+            levels_seen.append(level)
+
+        anchors.setdefault(level, {})
+        anchors[level].setdefault("left",  {"anchor_type": "None", "notes": ""})
+        anchors[level].setdefault("right", {"anchor_type": "None", "notes": ""})
+
+        # First row wins for each level+side (duplicates are unexpected)
+        if anchors[level][side].get("anchor_type", "None") != "None":
+            continue
+
+        if cat == "Screw":
+            anchors[level][side] = {
+                "anchor_type": "Screw",
+                "screw_type":   typ,
+                "diameter_mm":  dia,
+                "length_mm":    length,
+                "tap":          False,
+                "notes":        notes,
+            }
+        elif cat == "Hook":
+            anchors[level][side] = {
+                "anchor_type": "Hook",
+                "hook_type":   typ,
+                "notes":       notes,
+            }
+        elif cat == "Tape":
+            anchors[level][side] = {
+                "anchor_type": "Tape",
+                "tape_type":   typ,
+                "notes":       notes,
+            }
+        else:
+            anchors[level][side] = {
+                "anchor_type": "None",
+                "notes":       notes,
+            }
+
+    if not levels_seen:
+        return False, "screw_info.csv had no usable rows (check Level/Side columns)."
+
+    # Replace everything
+    ap["levels"]  = levels_seen
+    ap["anchors"] = anchors
+
+    return True, f"Imported screw selections from:\n{csv_path}"

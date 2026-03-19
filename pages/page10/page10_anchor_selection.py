@@ -13,6 +13,10 @@ from inventory.inventory_loader import (
     validate_inventory_data,
 )
 
+from shared.shared_measurements import import_screw_info_into_plan_data
+from inventory.database.csv_gen import export_inventory_to_shared_folder
+from shared.shared_measurements import SHARED_FOLDER
+
 WHITE = "#FFFFFF"
 LOGO_GREEN = "#036160"
 FONT = ("Segoe UI", 12)
@@ -70,18 +74,25 @@ class Page10AnchorSelection:
 
         ttk.Button(
             slicer_frame,
-            text="Launch 4D Slicer",
+            text="Launch 4D Slicer & Export Inventory",
             style="Green.TButton",
-            command=self._on_launch_slicer
+            command=self._on_launch_slicer_and_export
         ).pack(anchor="w", padx=10, pady=10)
 
         ttk.Button(
-                    slicer_frame,
-                    text="Change Slicer Path",
-                    style="Light.TButton",
-                    command=self._on_browse_slicer
-                ).pack(anchor="w", padx=10, pady=(0, 10))
-                
+            slicer_frame,
+            text="Change Slicer Path",
+            style="Light.TButton",
+            command=self._on_browse_slicer
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+        ttk.Button(
+            slicer_frame,
+            text="Import Screw Selections from 4D Slicer",
+            style="Green.TButton",
+            command=self._on_import_screw_info
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+        
         self.slicer_status_label = tk.Label(
             slicer_frame,
             text="",
@@ -793,14 +804,26 @@ class Page10AnchorSelection:
         if anchor_type == "Screw":
             sm["screw_frame"].grid()
             sm["screw_type_var"].set((data.get("screw_type") or "").strip())
-            sm["dia_var"].set(str(data.get("diameter_mm") or "").strip())
-            sm["len_var"].set(str(data.get("length_mm") or "").strip())
+
+            dia = str(data.get("diameter_mm") or "").strip()
+            length = str(data.get("length_mm") or "").strip()
+
+            if self._inventory_loaded():
+                sm["dia_var"].set(dia)
+                self._refresh_diams_for_side(sm)
+                sm["len_var"].set(length)
+                self._refresh_lengths_for_side(sm)
+            else:
+                # Inventory not loaded yet — inject values directly so they display
+                sm["dia_combo"].configure(values=[dia] if dia else [])
+                sm["dia_var"].set(dia)
+                sm["len_combo"].configure(values=[length] if length else [])
+                sm["len_var"].set(length)
+
             sm["tap_var"].set(bool(data.get("tap", False)))
-            self._refresh_diams_for_side(sm)
-            self._refresh_lengths_for_side(sm)
             self._update_tap_visibility(sm)
             self._update_tap_label(sm)
-
+   
         elif anchor_type == "Hook":
             sm["hook_frame"].grid()
             sm["hook_var"].set((data.get("hook_type") or "").strip())
@@ -1079,23 +1102,60 @@ class Page10AnchorSelection:
             self.app.is_dirty = True
         return path
 
-    def _on_launch_slicer(self):
-        slicer_path = self._find_slicer_exe()
+    def _on_launch_slicer_and_export(self):
+        # Step 1: export inventory to shared folder
+        self.slicer_status_label.configure(text="Exporting inventory...")
+        self.slicer_status_label.update_idletasks()
 
+        ok, msg = export_inventory_to_shared_folder(SHARED_FOLDER)
+        if not ok:
+            self.slicer_status_label.configure(text=f"Export failed: {msg}")
+            return
+
+        # Step 2: launch Slicer
+        slicer_path = self._find_slicer_exe()
         if not slicer_path:
-            self.slicer_status_label.configure(text="Slicer not found — please locate it.")
+            self.slicer_status_label.configure(text="Inventory exported. Slicer not found — please locate it.")
             slicer_path = self._on_browse_slicer()
 
         if not slicer_path:
-            self.slicer_status_label.configure(text="Slicer path not set.")
+            self.slicer_status_label.configure(text="Inventory exported. Slicer path not set.")
             return
 
         try:
             subprocess.Popen([slicer_path])
-            self.slicer_status_label.configure(text=f"4D Slicer launched.")
-            # Save the found path for next time
             self.app.plan_data["slicer_path"] = slicer_path
             self.app.is_dirty = True
+            self.slicer_status_label.configure(
+                text="Inventory exported & 4D Slicer launched. When done, click Import Screw Selections."
+            )
         except Exception as e:
             messagebox.showerror("Launch Failed", str(e))
-            self.slicer_status_label.configure(text=f"Launch failed: {e}")
+            self.slicer_status_label.configure(text=f"Inventory exported but Slicer launch failed: {e}")
+        
+    ##
+
+    def _on_import_screw_info(self):
+        success, message = import_screw_info_into_plan_data(self.app.plan_data)
+        print("Inventory loaded at import time:", self._inventory_loaded())  # <-- add this
+
+        if success:
+            self.app.is_dirty = True
+            # Tear down existing rows and rebuild from the freshly written plan_data
+            self._loading_state = True
+            try:
+                for row in list(self.level_rows):
+                    row.destroy()
+                self.level_vars.clear()
+                self.level_combos.clear()
+                self.row_models.clear()
+                self.level_rows.clear()
+            finally:
+                self._loading_state = False
+
+            self._restore_from_plan_data()
+            self._update_remove_buttons()
+            self._update_inventory_warnings()
+            self.slicer_status_label.configure(text="Screw selections imported from 4D Slicer.")
+        else:
+            self.slicer_status_label.configure(text=f"Import failed: {message}")
