@@ -809,12 +809,13 @@ class Page10AnchorSelection:
             length = str(data.get("length_mm") or "").strip()
 
             if self._inventory_loaded():
-                sm["dia_var"].set(dia)
+                # Full inventory path — filter dropdowns from inventory
                 self._refresh_diams_for_side(sm)
-                sm["len_var"].set(length)
+                sm["dia_var"].set(dia)
                 self._refresh_lengths_for_side(sm)
+                sm["len_var"].set(length)
             else:
-                # Inventory not loaded yet — inject values directly so they display
+                # No inventory yet — inject values directly, skip all refresh calls
                 sm["dia_combo"].configure(values=[dia] if dia else [])
                 sm["dia_var"].set(dia)
                 sm["len_combo"].configure(values=[length] if length else [])

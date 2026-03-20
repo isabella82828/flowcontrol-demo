@@ -378,31 +378,28 @@ def compute_lebel_v3(inputs: Dict[str, Any]) -> Dict[str, Any]:
     # ----------------------------
     liv_adjustment_note = ""
 
+    # After determining liv, run S1 plumb line check
     if liv:
-        checked_levels = []
-        while liv in s1_relation_by_level:
-            rel = s1_relation_by_level.get(liv, "")
-            checked_levels.append(f"{liv}:{rel or 'Unknown'}")
-
-            if rel in ("Intersected", "Anterior"):
-                break
-
-            if rel == "Posterior":
-                old_liv = liv
-                new_liv = _next_distal_level(liv)
-                if new_liv == liv:
-                    liv_adjustment_note = (
-                        f"S1 plumb line check found {old_liv} posterior to the plumb line, "
-                        f"but no more distal predefined level is available. Please review sagittal alignment."
-                    )
-                    break
-                liv = new_liv
-                liv_adjustment_note = (
-                    f"S1 plumb line check adjusted LIV distally from {old_liv} to {new_liv}. "
-                    f"Please review sagittal alignment."
-                )
+        # Find the first level at or distal to liv that has a S1 relation defined
+        check_order = ["L3", "L4", "L5"]
+        for check_level in check_order:
+            # Skip levels proximal to current LIV
+            if _VERTEBRA_ORDER.get(check_level, 999) < _VERTEBRA_ORDER.get(liv, 0):
                 continue
-            break
+            rel = s1_relation_by_level.get(check_level, "")
+            if not rel:
+                continue
+            if rel in ("Intersected", "Anterior"):
+                if _VERTEBRA_ORDER.get(check_level, 0) > _VERTEBRA_ORDER.get(liv, 0):
+                    old_liv = liv
+                    liv = check_level
+                    liv_adjustment_note = (
+                        f"S1 plumb line check adjusted LIV distally from {old_liv} to {check_level}. "
+                        f"Please review sagittal alignment."
+                    )
+                break
+            if rel == "Posterior":
+                continue
     # ----------------------------
     # SLF eligibility 
     # Only Lenke 5/6 and lumbar C
