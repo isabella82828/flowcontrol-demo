@@ -22,7 +22,7 @@ def show_help_popup(
     win.configure(bg=WHITE)
     win.resizable(True, True)
 
-    # Center near parent window
+    # Center 
     try:
         px = parent.winfo_rootx()
         py = parent.winfo_rooty()
@@ -76,7 +76,21 @@ def show_help_popup(
 
     inner.bind("<Configure>", _update_scrollregion)
 
-    # Optional image at top
+    # Text content (read-only)
+    body_lbl = tk.Label(
+        inner,
+        text=body,
+        bg=WHITE,
+        font=FONT,
+        justify="left",
+        anchor="w",
+        wraplength=width - 60,
+        padx=10,
+        pady=10,
+    )
+    body_lbl.pack(anchor="w", fill="x")
+
+    # Optional image below text
     if image_path:
         try:
             img = Image.open(image_path)
@@ -92,26 +106,15 @@ def show_help_popup(
             img_lbl.image = photo  # prevent GC
             img_lbl.pack(anchor="w", padx=10, pady=(6, 10))
         except Exception as e:
-            err = tk.Label(inner, text=f"[Image failed to load: {e}]", bg=WHITE, fg="gray", font=("Segoe UI", 10))
+            err = tk.Label(
+                inner,
+                text=f"[Image failed to load: {e}]",
+                bg=WHITE,
+                fg="gray",
+                font=("Segoe UI", 10)
+            )
             err.pack(anchor="w", padx=10, pady=(6, 10))
 
-    # Text content below (read-only)
-    text = tk.Text(
-        inner,
-        wrap="word",
-        font=FONT,
-        bg=WHITE,
-        relief="flat",
-        borderwidth=0,
-        highlightthickness=0,
-        padx=10,
-        pady=10,
-    )
-    text.pack(fill="both", expand=True)
-
-    text.configure(state="normal")
-    text.insert("1.0", body)
-    text.configure(state="disabled")
 
     # Mousewheel scrolling (Windows + macOS)
     def _on_mousewheel(event):

@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 from typing import Dict, Optional
+import os
+from PIL import Image, ImageTk 
 
 from pages.page04.logic.lebel_v3 import compute_lebel_v3
 from pages.page04.logic.baldwin_v2 import compute_baldwin_v2
@@ -12,8 +14,12 @@ from shared.shared_measurements import import_slicer_measurements_into_plan_data
 WHITE = "#FFFFFF"
 FONT = ("Segoe UI", 12)
 
-import os
-from PIL import Image, ImageTk 
+VERTEBRA_LEVELS = [
+    "-",
+    "T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12",
+    "L1","L2","L3","L4","L5",
+    "S1"
+]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HELP_ICON_PATH = os.path.join(BASE_DIR, "assets", "question-mark.png")
@@ -153,7 +159,7 @@ class Page04RadiographicAdaptive:
        # -----------------------------
        # Section: Lenke inputs (always visible)
        # -----------------------------
-       sec_lenke = ttk.LabelFrame(scrollable, text="Lenke Classification Inputs")
+       sec_lenke = ttk.LabelFrame(scrollable, text="Radiographic Parameters")
        sec_lenke.pack(fill="x", pady=(10, 8), padx=6)
        self.sections["lenke"] = sec_lenke
 
@@ -175,7 +181,7 @@ class Page04RadiographicAdaptive:
 
        add_combo(
            lenke_lebel,
-           "CSVL at TL/L apex position",
+           "CSVL at TL/L Apex Position",
            "standing_coronal",
            "csvl_tll_apex_position",
            ["Between Pedicles", "Touches apical body", "Completely medial"],
@@ -184,14 +190,14 @@ class Page04RadiographicAdaptive:
 
 
        # Standing sagittal
-       add_entry(lenke_lebel, "T2–T5 kyphosis", "standing_sagittal", "t2_5_kyphosis")
-       add_entry(lenke_lebel, "T5–T12 kyphosis", "standing_sagittal", "t5_12_kyphosis")
-       add_entry(lenke_lebel, "T10–L2 kyphosis", "standing_sagittal", "t10_l2_kyphosis")
+       add_entry(lenke_lebel, "T2–T5 Kyphosis", "standing_sagittal", "t2_5_kyphosis")
+       add_entry(lenke_lebel, "T5–T12 Kyphosis", "standing_sagittal", "t5_12_kyphosis")
+       add_entry(lenke_lebel, "T10–L2 Kyphosis", "standing_sagittal", "t10_l2_kyphosis")
 
 
        add_combo(
             lenke_lebel,
-            "PT apex level",
+            "PT Apex Level",
             "standing_sagittal",
             "pt_apex_level",
             ["T1", "T2", "T3", "T4", "T5"],
@@ -200,15 +206,15 @@ class Page04RadiographicAdaptive:
         )
 
        # Bending (coronal)
-       add_entry(lenke_lebel, "PT Cobb (bending)", "bending", "pt_cobb")
-       add_entry(lenke_lebel, "MT Cobb (bending)", "bending", "mt_cobb")
-       add_entry(lenke_lebel, "TL/L Cobb (bending)", "bending", "tl_l_cobb")
+       add_entry(lenke_lebel, "PT Cobb - Bending", "bending", "pt_cobb")
+       add_entry(lenke_lebel, "MT Cobb - Bending", "bending", "mt_cobb")
+       add_entry(lenke_lebel, "TL/L Cobb - Bending", "bending", "tl_l_cobb")
 
        add_entry(lenke_lebel, "Risser score", "standing_coronal", "risser_score")
 
        add_combo(
            lenke_lebel,
-           "Shoulder elevation",
+           "Shoulder Elevation",
            "standing_coronal",
            "shoulder_elevation",
            ["Left", "Right", "Neither"],
@@ -218,7 +224,7 @@ class Page04RadiographicAdaptive:
 
        add_combo(
            lenke_lebel,
-           "Trunk shift direction",
+           "Trunk Shift Direction",
            "standing_coronal",
            "trunk_shift",
            ["Left", "Right", "Neither"],
@@ -228,7 +234,7 @@ class Page04RadiographicAdaptive:
 
        add_combo(
            lenke_lebel,
-           "Variant vertebral anatomy present",
+           "Variant vertebral anatomy present?",
            "additional_standing_coronal",
            "variant_vertebral_anatomy",
            ["No", "Yes"],
@@ -267,17 +273,17 @@ class Page04RadiographicAdaptive:
            write_default=False
        )
 
-       add_entry(lenke_baldwin, "T2–T5 kyphosis", "standing_sagittal", "t2_5_kyphosis")
-       add_entry(lenke_baldwin, "T5–T12 kyphosis", "standing_sagittal", "t5_12_kyphosis")
-       add_entry(lenke_baldwin, "T10–L2 kyphosis", "standing_sagittal", "t10_l2_kyphosis")
+       add_entry(lenke_baldwin, "T2–T5 Kyphosis", "standing_sagittal", "t2_5_kyphosis")
+       add_entry(lenke_baldwin, "T5–T12 Kyphosis", "standing_sagittal", "t5_12_kyphosis")
+       add_entry(lenke_baldwin, "T10–L2 Kyphosis", "standing_sagittal", "t10_l2_kyphosis")
 
-       add_entry(lenke_baldwin, "PT Cobb (bending)", "bending", "pt_cobb")
-       add_entry(lenke_baldwin, "MT Cobb (bending)", "bending", "mt_cobb")
-       add_entry(lenke_baldwin, "TL/L Cobb (bending)", "bending", "tl_l_cobb")
+       add_entry(lenke_baldwin, "PT Cobb - Bending", "bending", "pt_cobb")
+       add_entry(lenke_baldwin, "MT Cobb - Bending", "bending", "mt_cobb")
+       add_entry(lenke_baldwin, "TL/L Cobb - Bending", "bending", "tl_l_cobb")
 
        add_combo(
            lenke_baldwin,
-           "Shoulder elevation",
+           "Shoulder Elevation",
            "standing_coronal",
            "shoulder_elevation",
            ["Left", "Right", "Neither"],
@@ -391,7 +397,7 @@ class Page04RadiographicAdaptive:
                  ["Yes", "No"], width=8, default="No")
 
 
-       add_combo(sec_stf, "Proceed with STF (patient preference)", "additional_standing_coronal", "selective_thoracic_pref",
+       add_combo(sec_stf, "Proceed with STF? (patient preference)", "additional_standing_coronal", "selective_thoracic_pref",
                  ["Yes", "No"], width=8, default="No")
 
 
@@ -471,14 +477,34 @@ class Page04RadiographicAdaptive:
             default="Neutral"
         )
        
-       add_entry(self.liv_lebel_12_frame, "MT-LTV", "additional_standing_coronal", "mt_ltv", width=10)
-       add_entry(self.liv_lebel_12_frame, "Stable vertebra (SLTV)", "additional_supine_coronal", "sltv", width=10)
-       add_entry(
+       add_combo(
+            self.liv_lebel_12_frame,
+            "MT-LTV",
+            "standing_coronal",
+            "mt_ltv",
+            VERTEBRA_LEVELS,
+            width=10,
+            default="-"
+        )
+
+       add_combo(
+            self.liv_lebel_12_frame,
+            "Supine Last Touched Vertebrae (SLTV)",
+            "additional_supine_coronal",
+            "sltv",
+            VERTEBRA_LEVELS,
+            width=10,
+            default="-"
+        )
+
+       add_combo(
             self.liv_lebel_12_frame,
             "Last substantially touched vertebra (LSTV)",
             "standing_coronal",
             "last_substantially_touched_vertebra",
-            width=10
+            VERTEBRA_LEVELS,
+            width=10,
+            default="-"
         )
 
        # Baldwin STF-path LIV inputs
@@ -487,17 +513,21 @@ class Page04RadiographicAdaptive:
        
        add_entry(
             self.liv_baldwin_12_frame,
-            "Stable vertebra (SV)",
+            "Supine Last Touched Vertebrae (SLTV)",
             "additional_standing_coronal",
             "stable_vertebra",
             width=10
         )
-       add_entry(
+       
+       add_combo(
             self.liv_baldwin_12_frame,
             "MT-LTV",
             "additional_standing_coronal",
             "mt_ltv",
-            width=10
+            VERTEBRA_LEVELS,
+            width=10,
+            default="-",
+            write_default=False
         )
 
        # Non-STF LIV inputs, Baldwin 3–6 path, and Lebel 3–6 path

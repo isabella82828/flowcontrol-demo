@@ -1091,75 +1091,224 @@ class FlowbiWanApp:
 
         self.setup_page_5()
 
+    def _make_info_card(self, parent, title, value_var, width=170, height=86):
+        card = tk.Frame(
+            parent,
+            bg="#FCFCFC",
+            highlightbackground="#CFCFCF",
+            highlightthickness=1,
+            bd=0,
+            width=width,
+            height=height
+        )
+        card.grid_propagate(False)
+
+        tk.Label(
+            card,
+            text=title,
+            bg=WHITE,
+            fg="gray35",
+            font=("Segoe UI", 10, "bold"),
+            anchor="w"
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+
+        tk.Label(
+            card,
+            textvariable=value_var,
+            bg=WHITE,
+            fg=LOGO_GREEN,
+            font=("Segoe UI", 18, "bold"),
+            anchor="w"
+        ).pack(anchor="w", padx=12, pady=(0, 10))
+
+        return card
+
+
+    def _make_section_card(self, parent, title, subtitle_var=None, body_height=5):
+        outer = tk.Frame(
+            parent,
+            bg=WHITE,
+            highlightbackground="#D9D9D9",
+            highlightthickness=1,
+            bd=0
+        )
+
+        header = tk.Frame(outer, bg=WHITE)
+        header.pack(fill="x", padx=12, pady=(10, 4))
+
+        tk.Label(
+            header,
+            text=title,
+            bg=WHITE,
+            fg=LOGO_GREEN,
+            font=("Segoe UI", 12, "bold")
+        ).pack(side="left")
+
+        badge_holder = None
+        if subtitle_var is not None:
+            badge_holder = tk.Frame(header, bg=WHITE)
+            badge_holder.pack(side="right")
+
+            def _refresh_badge(*_):
+                for child in badge_holder.winfo_children():
+                    child.destroy()
+                badge = self._make_status_badge(badge_holder, subtitle_var.get())
+                badge.pack(side="right")
+
+            subtitle_var.trace_add("write", lambda *_: _refresh_badge())
+            _refresh_badge()
+
+        body = tk.Text(
+            outer,
+            height=body_height,
+            font=("Segoe UI", 10),
+            wrap="word",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            bg=WHITE,
+            padx=10,
+            pady=8
+        )
+        body.pack(fill="both", expand=True, padx=8, pady=(0, 10))
+        body.config(state="disabled")
+
+        return outer, body
+
+    def _set_text_widget(self, widget, content):
+        widget.config(state="normal")
+        widget.delete("1.0", tk.END)
+        if isinstance(content, list):
+            widget.insert("1.0", "\n".join(content))
+        else:
+            widget.insert("1.0", content or "")
+        widget.config(state="disabled")
+    
+    def _make_status_badge(self, parent, text):
+        txt = (text or "").strip()
+        is_yes = txt.lower().endswith("yes")
+
+        bg = "#2E7D32" if is_yes else "#7A7A7A"
+
+        badge = tk.Label(
+            parent,
+            text=txt,
+            bg=bg,
+            fg="white",
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=3
+        )
+        return badge
+
     # Page 5 
     def setup_page_5(self):
         scrollable = self.create_standard_page(
-            title_text="Level Recommendations",
+            title_text="Level Recommendations Summary",
             back_command=self.setup_page_4,
             next_command=self.page5_next
         )
 
-        print("[DEBUG] logic_source=", self.plan_data.get("logic_source"), "logic=", self.plan_data.get("logic_source"))
+        tk.Label(
+            scrollable,
+            text="Recommendations based on the current radiographic inputs",
+            bg=WHITE,
+            fg="gray35",
+            font=("Segoe UI", 11)
+        ).pack(anchor="w", padx=10, pady=(4, 12))
 
-        row = self._add_row_label(scrollable, "Selected Logic Source:")
-        self.logic_display_var = tk.StringVar(value=(self.plan_data.get("logic_source") or "Lebel"))
-        ttk.Label(row, textvariable=self.logic_display_var, font=FONT).pack(side="left", padx=10)
+        # -----------------------------
+        # Summary cards
+        # -----------------------------
+        summary_frame = tk.Frame(scrollable, bg=WHITE)
+        summary_frame.pack(fill="x", padx=10, pady=(0, 14))
 
-        # --- Output fields ---
         self.result_labels = {}
-        for label in ["Lenke Type", "Lumbar Modifier", "Sagittal Modifier", "UIV", "LIV"]:
-            r = self._add_row_label(scrollable, f"{label}:")
-            var = tk.StringVar(value="—")
-            ttk.Label(r, textvariable=var, font=FONT).pack(side="left", padx=10)
-            self.result_labels[label.lower().replace(" ", "_")] = var
 
-        # --- Rationale/Evaluation text boxes ---
-        for section, height in [("UIV Rationale", 3), ("LIV Rationale", 3),
-                                ("STF Evaluation", 7), ("SLF Evaluation", 5)]:
-            tk.Label(scrollable, text=section + ":", font=FONT, bg=WHITE).pack(pady=(15, 2))
-            txt = tk.Text(scrollable, height=height, font=("Segoe UI", 10), wrap="word")
-            txt.config(state="disabled")
-            txt.pack(fill="x", padx=10)
-            self.result_labels[section.lower().replace(" ", "_")] = txt
+        self.logic_display_var = tk.StringVar(value=(self.plan_data.get("logic_source") or "Lebel"))
+        self.result_labels["logic_source"] = self.logic_display_var
+
+        for i in range(3):
+            summary_frame.columnconfigure(i, weight=1, uniform="summary")
+        for i in range(3, 6):
+            summary_frame.columnconfigure(i, weight=1, uniform="summary")
+
+        summary_items = [
+            ("Logic Source", "logic_source", self.logic_display_var),
+            ("Lenke Type", "lenke_type", tk.StringVar(value="—")),
+            ("Lumbar Modifier", "lumbar_modifier", tk.StringVar(value="—")),
+            ("Sagittal Modifier", "sagittal_modifier", tk.StringVar(value="—")),
+            ("UIV", "uiv", tk.StringVar(value="—")),
+            ("LIV", "liv", tk.StringVar(value="—")),
+        ]
+
+        for idx, (title, key, var) in enumerate(summary_items):
+            self.result_labels[key] = var
+            card = self._make_info_card(summary_frame, title, var, width=170, height=86)
+            row = idx // 3
+            col = idx % 3
+            card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
+
+        # -----------------------------
+        # Detail cards, 2 columns
+        # -----------------------------
+        details_frame = tk.Frame(scrollable, bg=WHITE)
+        details_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        details_frame.columnconfigure(0, weight=1, uniform="details")
+        details_frame.columnconfigure(1, weight=1, uniform="details")
+
+        self.stf_status_var = tk.StringVar(value="")
+        self.slf_status_var = tk.StringVar(value="")
+
+        uiv_card, uiv_box = self._make_section_card(details_frame, "UIV Rationale", body_height=4)
+        liv_card, liv_box = self._make_section_card(details_frame, "LIV Rationale", body_height=4)
+        stf_card, stf_box = self._make_section_card(details_frame, "STF Evaluation", subtitle_var=self.stf_status_var, body_height=6)
+        slf_card, slf_box = self._make_section_card(details_frame, "SLF Evaluation", subtitle_var=self.slf_status_var, body_height=5)
+
+        uiv_card.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
+        liv_card.grid(row=0, column=1, padx=6, pady=6, sticky="nsew")
+        stf_card.grid(row=1, column=0, padx=6, pady=6, sticky="nsew")
+        slf_card.grid(row=1, column=1, padx=6, pady=6, sticky="nsew")
+
+        self.result_labels["uiv_rationale"] = uiv_box
+        self.result_labels["liv_rationale"] = liv_box
+        self.result_labels["stf_evaluation"] = stf_box
+        self.result_labels["slf_evaluation"] = slf_box
 
         self.run_level_logic()
 
+
     def run_level_logic(self):
-        logic = None
-        if hasattr(self, "logic_var") and self.logic_var is not None:
-            logic = self.logic_var.get()
+        results = self.plan_data.get("level_selection") or {}
 
-        logic = (logic or self.plan_data.get("logic_source") or "Lebel")
+        if not results:
+            logic = None
+            if hasattr(self, "logic_var") and self.logic_var is not None:
+                logic = self.logic_var.get()
 
-        self.plan_data["logic_source"] = logic
+            logic = (logic or self.plan_data.get("logic_source") or "Lebel")
+            self.plan_data["logic_source"] = logic
+            results = self.calculate_lenke_and_levels(logic=logic)
 
-        results = self.calculate_lenke_and_levels(logic=logic)
+        logic = self.plan_data.get("logic_source") or "Lebel"
 
+        self.result_labels["logic_source"].set(logic)
         self.result_labels["lenke_type"].set(results.get("lenke_type", "—"))
         self.result_labels["lumbar_modifier"].set(results.get("lumbar_modifier", "—"))
         self.result_labels["sagittal_modifier"].set(results.get("sagittal_modifier", "—"))
         self.result_labels["uiv"].set(results.get("uiv", "—"))
         self.result_labels["liv"].set(results.get("liv", "—"))
 
-        def update_text(key, content):
-            box = self.result_labels[key]
-            box.config(state="normal")
-            box.delete("1.0", tk.END)
-            if isinstance(content, list):
-                box.insert("1.0", "\n".join(content))
-            else:
-                box.insert("1.0", content or "")
-            box.config(state="disabled")
+        self._set_text_widget(self.result_labels["uiv_rationale"], results.get("uiv_rationale", ""))
+        self._set_text_widget(self.result_labels["liv_rationale"], results.get("liv_rationale", ""))
+        self._set_text_widget(self.result_labels["stf_evaluation"], results.get("stf_reasons", []))
+        self._set_text_widget(self.result_labels["slf_evaluation"], results.get("slf_reason", ""))
 
-        update_text("uiv_rationale", results.get("uiv_rationale", ""))
-        update_text("liv_rationale", results.get("liv_rationale", ""))
-        update_text("stf_evaluation", results.get("stf_reasons", []))
-        update_text("slf_evaluation", results.get("slf_reason", ""))
-
-        # Save result block for export
-        self.plan_data["level_selection"] = results
-
-    # --- Save Plan from Page 5 ---
+        self.stf_status_var.set(f"Eligible: {results.get('stf_eligible', '—')}")
+        self.slf_status_var.set(f"Eligible: {results.get('slf_eligible', '—')}")
+        
+    # --- Save Plan ---
     def save_and_exit_plan(self):
         if "level_selection" not in self.plan_data:
             messagebox.showwarning("Missing Results", "Please run the logic to generate level selection.")
@@ -1167,18 +1316,7 @@ class FlowbiWanApp:
         self.exit_to_page_1()
 
     def page5_next(self):
-        level_sel = self.plan_data.get("level_selection", {}) or {}
-        lenke = (level_sel.get("lenke_type") or "").strip()
-
-        if lenke == "Lenke 1" or lenke.startswith("Lenke 1"):
-            self.setup_page5_5()
-        else:
-            self.setup_page_6()
-
-    def setup_page5_5(self):
-        self.clear_window()
-        from pages.page5_5.page5_5 import Page5_5
-        Page5_5(self).setup()
+        self.setup_page_6()
 
     # --- Logic Dispatcher ---
     def calculate_lenke_and_levels(self, logic=None):
@@ -1192,7 +1330,7 @@ class FlowbiWanApp:
         if logic == "Lebel":
             return self._calculate_lenke_lebel()
 
-        # Placeholders for Torode/Baldwin logic (coming soon!)
+        # Placeholders for Torode
         return {
             "lenke_type": "Unclassified",
             "lumbar_modifier": "-",
@@ -1768,7 +1906,7 @@ class FlowbiWanApp:
             ttk.Radiobutton(dev_row, text=txt, value=val, variable=cranial_device)\
                 .pack(side="left", padx=(0, 10))
 
-        SpinboxWidget = getattr(ttk, "Spinbox", tk.Spinbox)
+        SpinboxWidget = tk.Spinbox
         cranial_lbs = tk.DoubleVar(value=float(setup.get("cranial_weight_lbs", 13.0)))
         cranial_row = ttk.Frame(cranial_frame); cranial_row.pack(fill="x", padx=8, pady=6)
         ttk.Label(cranial_row, text="Cranial traction (lbs):", width=24).pack(side="left")
@@ -1901,15 +2039,14 @@ class FlowbiWanApp:
                         f"Left: {s['fem_left_lb']}  Right: {s['fem_right_lb']}"
                 )
 
-            if force:
-                cranial_lbs.set(s["cranial_lb"])
-                if fem_dist.get() == "symmetric":
-                    fem_total.set(s["fem_total_lb"])
-                    fem_l_lbs.set(s["fem_left_lb"])
-                    fem_r_lbs.set(s["fem_right_lb"])
-                else:
-                    fem_l_lbs.set(s["fem_left_lb"])
-                    fem_r_lbs.set(s["fem_right_lb"])
+            cranial_lbs.set(s["cranial_lb"])
+            if fem_dist.get() == "symmetric":
+                fem_total.set(s["fem_total_lb"])
+                fem_l_lbs.set(s["fem_left_lb"])
+                fem_r_lbs.set(s["fem_right_lb"])
+            else:
+                fem_l_lbs.set(s["fem_left_lb"])
+                fem_r_lbs.set(s["fem_right_lb"])
 
 
             if not calc_box_dirty["val"] or force:
@@ -2138,14 +2275,23 @@ class FlowbiWanApp:
 
         # Always-checked items
         neuro_on = tk.BooleanVar(value=equip.get("neuro_on", True))
-        small_cassette_on = tk.BooleanVar(value=equip.get("small_cassette_on", True))
+        portable_on = tk.BooleanVar(value=equip.get("portable_on", False))
+        portable_ap = tk.BooleanVar(value=equip.get("portable_ap", False))
+        portable_lateral = tk.BooleanVar(value=equip.get("portable_lateral", False))
+        portable_time_min = tk.StringVar(value=str(equip.get("portable_time_min", "45")))
+
+        long_cassette_on = tk.BooleanVar(value=equip.get("long_cassette_on", False))
+        long_cassette_ap = tk.BooleanVar(value=equip.get("long_cassette_ap", False))
+        long_cassette_lateral = tk.BooleanVar(value=equip.get("long_cassette_lateral", False))
+        long_cassette_time_min = tk.StringVar(value=str(equip.get("long_cassette_time_min", "45")))
+
         sonopet_on = tk.BooleanVar(value=equip.get("sonopet_on", True))
         nav7d_on = tk.BooleanVar(value=equip.get("nav7d_on", True))
         suk_on = tk.BooleanVar(value=equip.get("suk_on", True))
         long_radiographs_on = tk.BooleanVar(value=equip.get("long_radiographs_on", True))
 
         # Neurophysiology section
-        neuro_frame = ttk.LabelFrame(frame, text="Neurophysiology (default: ON)")
+        neuro_frame = ttk.LabelFrame(frame, text="Neurophysiology")
         neuro_frame.pack(fill="x", pady=(8,6))
         ttk.Checkbutton(neuro_frame, text="Enable Neurophysiology", variable=neuro_on)\
             .pack(anchor="w", padx=8, pady=(8,4))
@@ -2165,16 +2311,119 @@ class FlowbiWanApp:
         ttk.Radiobutton(base_row, text="Supine", variable=baseline_var, value="supine").pack(side="left", padx=(0,10))
         ttk.Radiobutton(base_row, text="Prone (before traction)", variable=baseline_var, value="prone").pack(side="left")
 
-        # Imaging / devices
         xray1 = ttk.LabelFrame(frame, text="Imaging / Devices")
         xray1.pack(fill="x", pady=(6,6))
-        ttk.Checkbutton(xray1,
-            text="Small Cassette AP digital radiograph 45 minutes after skin cut for level check  (Pager: 416-713-0188)",
-            variable=small_cassette_on).pack(anchor="w", padx=8, pady=(8,4))
+
+        portable_row = ttk.Frame(xray1)
+        portable_row.pack(fill="x", padx=8, pady=(8,2))
+
+        ttk.Checkbutton(
+            portable_row,
+            text="Portable Digital Radiograph (Standard Plate)",
+            variable=portable_on
+        ).pack(side="left")
+
+        portable_views_row = ttk.Frame(xray1)
+
+        ttk.Checkbutton(
+            portable_views_row,
+            text="AP",
+            variable=portable_ap
+        ).pack(side="left", padx=(0,12))
+
+        ttk.Checkbutton(
+            portable_views_row,
+            text="Lateral",
+            variable=portable_lateral
+        ).pack(side="left")
+
+        portable_time_row = ttk.Frame(xray1)
+
+        ttk.Label(
+            portable_time_row,
+            text="Time from incision (min):"
+        ).pack(side="left")
+
+        portable_time_entry = ttk.Entry(
+            portable_time_row,
+            textvariable=portable_time_min,
+            width=8
+        )
+        portable_time_entry.pack(side="left", padx=(6,12))
+
+        def _toggle_portable_views(*_):
+            if portable_on.get():
+                if not portable_views_row.winfo_ismapped():
+                    portable_views_row.pack(fill="x", padx=32, pady=(0,2), after=portable_row)
+                if not portable_time_row.winfo_ismapped():
+                    portable_time_row.pack(fill="x", padx=48, pady=(0,6), after=portable_views_row)
+            else:
+                portable_views_row.pack_forget()
+                portable_time_row.pack_forget()
+                portable_ap.set(False)
+                portable_lateral.set(False)
+
+        long_cassette_row = ttk.Frame(xray1)
+        long_cassette_row.pack(fill="x", padx=8, pady=(4,2))
+
+        ttk.Checkbutton(
+            long_cassette_row,
+            text='Long Cassette (36") Radiograph',
+            variable=long_cassette_on
+        ).pack(side="left")
+
+        long_cassette_views_row = ttk.Frame(xray1)
+
+        ttk.Checkbutton(
+            long_cassette_views_row,
+            text="AP",
+            variable=long_cassette_ap
+        ).pack(side="left", padx=(0,12))
+
+        ttk.Checkbutton(
+            long_cassette_views_row,
+            text="Lateral",
+            variable=long_cassette_lateral
+        ).pack(side="left")
 
 
-        ttk.Checkbutton(xray1, text="Stryker iQ Ultrasonic Surgical System with Sonopet iQ Aspirator",
-                        variable=sonopet_on).pack(anchor="w", padx=8, pady=4)
+        long_cassette_time_row = ttk.Frame(xray1)
+
+        ttk.Label(
+            long_cassette_time_row,
+            text="Time from incision (min):"
+        ).pack(side="left")
+
+        long_cassette_time_entry = ttk.Entry(
+            long_cassette_time_row,
+            textvariable=long_cassette_time_min,
+            width=8
+        )
+        long_cassette_time_entry.pack(side="left", padx=(6,12))
+
+        def _toggle_long_cassette_views(*_):
+            if long_cassette_on.get():
+                if not long_cassette_views_row.winfo_ismapped():
+                    long_cassette_views_row.pack(fill="x", padx=32, pady=(0,2), after=long_cassette_row)
+                if not long_cassette_time_row.winfo_ismapped():
+                    long_cassette_time_row.pack(fill="x", padx=48, pady=(0,6), after=long_cassette_views_row)
+            else:
+                long_cassette_views_row.pack_forget()
+                long_cassette_time_row.pack_forget()
+                long_cassette_ap.set(False)
+                long_cassette_lateral.set(False)
+
+        ttk.Checkbutton(
+            xray1,
+            text="Stryker iQ Ultrasonic Surgical System with Sonopet iQ Aspirator",
+            variable=sonopet_on
+        ).pack(anchor="w", padx=8, pady=4)
+
+        portable_on.trace_add("write", lambda *_: _toggle_portable_views())
+        long_cassette_on.trace_add("write", lambda *_: _toggle_long_cassette_views())
+
+        _toggle_portable_views()
+        _toggle_long_cassette_views()
 
         nav = ttk.LabelFrame(frame, text="7D Navigation")
         nav.pack(fill="x", pady=(6,6))
@@ -2220,7 +2469,14 @@ class FlowbiWanApp:
                 "neuro_on": bool(neuro_on.get()),
                 "neuro_modalities": {k: bool(v.get()) for k, v in modal_vars.items()},
                 "neuro_baseline": baseline_var.get(),  # "supine" or "prone"
-                "small_cassette_on": bool(small_cassette_on.get()),
+                "portable_on": bool(portable_on.get()),
+                "portable_ap": bool(portable_ap.get()),
+                "portable_lateral": bool(portable_lateral.get()),
+                "portable_time_min": portable_time_min.get().strip(),
+                "long_cassette_on": bool(long_cassette_on.get()),
+                "long_cassette_ap": bool(long_cassette_ap.get()),
+                "long_cassette_lateral": bool(long_cassette_lateral.get()),
+                "long_cassette_time_min": long_cassette_time_min.get().strip(),
                 "sonopet_on": bool(sonopet_on.get()),
                 "nav7d_on": bool(nav7d_on.get()),
                 "nav7d_items": {k: bool(v.get()) for k, v in nav_vars.items()},
@@ -2229,7 +2485,15 @@ class FlowbiWanApp:
             }
 
         # Traces
-        for v in [neuro_on, small_cassette_on, sonopet_on, nav7d_on, suk_on, long_radiographs_on, baseline_var, *modal_vars.values(), *nav_vars.values()]:
+        for v in [
+            neuro_on,
+            portable_on, portable_ap, portable_lateral, portable_time_min,
+            long_cassette_on, long_cassette_ap, long_cassette_lateral, long_cassette_time_min,
+            sonopet_on, nav7d_on, suk_on, long_radiographs_on,
+            baseline_var,
+            *modal_vars.values(),
+            *nav_vars.values()
+        ]:
             v.trace_add("write", lambda *_: persist())
         persist()
 
@@ -2277,10 +2541,11 @@ class FlowbiWanApp:
         for text, var in [
             ("Pre-incision Antibiotics – Cefazolin 30 mg/kg prior (re-dose q4h)", pre_abx),
             ("Normal Saline irrigation 250 ml (warmed) after level check x-ray", ns_after_levelcheck),
-            ("New Gloves", new_gloves_1),
+            ("New Gloves after level check x-ray", new_gloves_1),
+            ("New Gloves after final radiographs", new_gloves_2), 
             ("Normal Saline irrigation 250 ml (warmed) after facetectomies", ns_after_facets),
             ("Normal Saline irrigation 250 ml (warmed) after final radiographs", ns_after_final),
-            ("New Gloves", new_gloves_2),
+            
             ("10% Povidone Iodine Solution painting of implants prior to final closure", povidone_paint),
             ("Normal Saline irrigation 500 ml (warmed) after Povidone Iodine painting", ns_after_povidone),
             ("Vancomycin powder 500 mg at wound closure", vanc_wound),
@@ -2316,7 +2581,7 @@ class FlowbiWanApp:
         ttk.Checkbutton(row3, text="OPSITE™", variable=op_on).pack(side="left", padx=(0,12))
 
         op_size = tk.StringVar(value=inf.get("opsite_size", "45x55"))
-        for txt, val in [("45×28 cm","45x28"), ("45×55 cm (Default)","45x55"), ("84×56 cm","84x56")]:
+        for txt, val in [("45×28 cm","45x28"), ("45×55 cm","45x55"), ("84×56 cm","84x56")]:
             ttk.Radiobutton(row3, text=txt, variable=op_size, value=val).pack(side="left", padx=(0,12))
 
         # Steri-Drape (AIS: unchecked; NMS: checked)
@@ -2354,7 +2619,7 @@ class FlowbiWanApp:
 
         # TXA (leave dose entry fields, set per-protocol)
         txa_on = tk.BooleanVar(value=blood.get("txa_on", True))
-        txa_frame = ttk.LabelFrame(frame, text="Tranexamic Acid (default: ON)")
+        txa_frame = ttk.LabelFrame(frame, text="Tranexamic Acid")
         txa_frame.pack(fill="x", pady=(8,6))
         ttk.Checkbutton(txa_frame, text="Enable TXA", variable=txa_on).pack(anchor="w", padx=8, pady=(8,4))
 
@@ -2366,7 +2631,7 @@ class FlowbiWanApp:
 
         # Cell Saver
         cell_on = tk.BooleanVar(value=blood.get("cell_saver_on", True))
-        ttk.Checkbutton(frame, text="Cell Saver – default ON", variable=cell_on).pack(anchor="w", padx=8, pady=(6,8))
+        ttk.Checkbutton(frame, text="Cell Saver", variable=cell_on).pack(anchor="w", padx=8, pady=(6,8))
 
         # Floseal
         floseal_on = tk.BooleanVar(value=blood.get("floseal_on", True))
@@ -2383,7 +2648,7 @@ class FlowbiWanApp:
         qty_row.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Label(qty_row, text="Quantity (boxes):").pack(side="left", padx=(0, 8))
 
-        SpinboxWidget = getattr(ttk, "Spinbox", tk.Spinbox)
+        SpinboxWidget = tk.Spinbox
         boxes_spin = SpinboxWidget(qty_row, from_=0, to=20, increment=1, width=6, textvariable=floseal_boxes)
         boxes_spin.pack(side="left")
 
@@ -2410,10 +2675,16 @@ class FlowbiWanApp:
         ttk.Checkbutton(infil, text="Enable Infiltration Calculator", variable=infil_on)\
             .pack(anchor="w", padx=8, pady=(8,4))
 
-        w_row = ttk.Frame(infil); w_row.pack(fill="x", padx=8, pady=(0,8))
+        w_row = ttk.Frame(infil)
+        w_row.pack(fill="x", padx=8, pady=(0,8))
+
         ttk.Label(w_row, text="Patient weight (kg):").pack(side="left")
-        infil_w_kg = tk.StringVar(value=str(blood.get("infiltration_weight_kg", "")))
-        ttk.Entry(w_row, textvariable=infil_w_kg, width=10).pack(side="left", padx=(6,12))
+
+        patient_weight = self.plan_data.get("patient", {}).get("weight_kg", "")
+        infil_w_kg = tk.StringVar(value=str(patient_weight if patient_weight is not None else ""))
+
+        weight_entry = ttk.Entry(w_row, textvariable=infil_w_kg, width=10, state="readonly")
+        weight_entry.pack(side="left", padx=(6,12))
 
         # Outputs
         out = ttk.Label(infil, text="", justify="left")
@@ -2464,15 +2735,15 @@ class FlowbiWanApp:
                 "floseal_location": floseal_loc.get(),
                 "floseal_boxes": int(floseal_boxes.get()),
                 "infiltration_on": bool(infil_on.get()),
-                "infiltration_weight_kg": infil_w_kg.get().strip(),
+                "infiltration_weight_kg": self.plan_data.get("patient", {}).get("weight_kg"),
                 "infiltration_notes": notes_var.get().strip(),
                 "infiltration_summary": out.cget("text"),
             }
 
         # Traces
         for v in [txa_on, txa_bolus, txa_infusion, cell_on, floseal_on, floseal_loc, floseal_boxes,
-                infil_on, infil_w_kg, notes_var]:
-            v.trace_add("write", lambda *_: refresh_outputs())
+        infil_on, notes_var]:
+             v.trace_add("write", lambda *_: refresh_outputs())
         refresh_outputs()
 
     def _build_tab_post_op_recovery(self, frame):

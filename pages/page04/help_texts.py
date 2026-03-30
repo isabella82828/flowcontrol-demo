@@ -24,6 +24,12 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "If not measured, choose Not assessed / Unknown."
             ),
         ),
+
+        "last_substantially_touched_vertebra": HelpItem(
+            title="Last Substantially Touched Vertebra (LSTV)",
+            body="Last vertebra where the CSVL passes medial to the pedicles on the standing radiograph",
+        ),
+
         "other_anatomic_considerations": HelpItem(
             title="Other anatomic considerations",
             body="Please enter any anatomic variants or considerations not captured above.",
@@ -35,6 +41,7 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "the proximal thoracic curve apex and the caudal endplate of the most tilted vertebra "
                 "below the apex (typically from T1 or T2 to T5)."
             ),
+            image_relpath="assets/mt_pt_tll_cobbs.png",
         ),
         "mt_apex_direction": HelpItem(
             title="Main Thoracic Curve Apex Direction",
@@ -47,6 +54,7 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "main thoracic curve apex and the lower endplate of the most tilted vertebra below the "
                 "apex (usually T4 to T12)."
             ),
+            image_relpath="assets/mt_pt_tll_cobbs.png",
         ),
         "tl_l_cobb": HelpItem(
             title="Thoracolumbar / Lumbar Cobb Angle (deg)",
@@ -54,6 +62,7 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "The coronal angle between the most tilted vertebra above the apex (often T10 to T12) "
                 "and the most tilted vertebra below the apex (often L3 to L4)."
             ),
+            image_relpath="assets/mt_pt_tll_cobbs.png",
         ),
         "risser_score": HelpItem(
             title="Risser Score",
@@ -65,6 +74,7 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "4 = 76 to 100% ossification\n"
                 "5 = Complete ossification and fusion to iliac crest"
             ),
+            image_relpath="assets/risser_grade.png",
         ),
         "lstv": HelpItem(
             title="Last Substantially Touched Vertebra (LSTV)",
@@ -86,6 +96,7 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "vertical trunk reference line (VTRL) and the CSVL. A trunk shift to the right of the CSVL "
                 "is a positive value, and to the left of the CSVL a negative value."
             ),
+            image_relpath="assets/trunk_shift.png",
         ),
         "csvl_tll_apex_position": HelpItem(
             title="CSVL–TL/L Apex Position",
@@ -94,7 +105,7 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
         ),
         "mt_ltv": HelpItem(
             title="MT-LTV",
-            body="Last touched vertebra of the main thoracic curve (MT-LTV), measured per the algorithm definition.",
+            body="Last vertebra where the CSVL passes medial to the pedicles on the standing radiograph.",
         ),
         "l4_tilt_direction": HelpItem(
             title="L4 Tilt Direction",
@@ -106,6 +117,16 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
                 "Coronal angle between the cranial endplate of the most titled vertebra above the proximal "
                 "thoracic curve apex and the caudal endplate of the most tilted vertebra below the apex "
                 "(typically from T1 or T2 to T5)."
+            ),
+            image_relpath="assets/t1_tilt.png",
+        ),
+        "shoulder_elevation": HelpItem(
+            title="Shoulder Elevation",
+            body=(
+                "Which shoulder is elevated?\n\n"
+                "Left: left shoulder is elevated.\n"
+                "Right: right shoulder is elevated.\n"
+                "Neither: shoulders are level."
             ),
         ),
         "mt_apical_translation_mm": HelpItem(
@@ -176,7 +197,8 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
             title="Bending Thoracolumbar / Lumbar Cobb Angle (deg)",
             body=(
                 "Use the same end vertebrae on bending films (towards the convexity of the thoracolumbar/lumbar curve) "
-                "as those chosen on the standing radiograph. "
+                "as those chosen on the standing radiograph.\n\n"
+                "If the curve over-corrects, enter a negative value."
             ),
         ),
         "l3_4_disc_angle": HelpItem(
@@ -244,11 +266,11 @@ HELP: Dict[str, Dict[str, HelpItem]] = {
     # -------------------------------------------------------------------------
     # tab: supine_coronal
     # -------------------------------------------------------------------------
-    "supine_coronal": {
-        "supine_last_touched_vertebra": HelpItem(
-            title="Supine Last Touched Vertebra",
+    "additional_supine_coronal": {
+        "sltv": HelpItem(
+            title="Supine Last Touched Vertebra (SLTV)",
             body=(
-                "Most cephalad thoracolumbar or lumbar vertebra (T12 to L5) that is “touched” by the CSVL "
+                "The most cephalad thoracolumbar or lumbar vertebra (T12 to L5) that is touched by the CSVL "
                 "on any portion of the vertebra, measured on the supine radiograph."
             ),
         ),
