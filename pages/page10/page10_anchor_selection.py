@@ -1134,14 +1134,124 @@ class Page10AnchorSelection:
             messagebox.showerror("Launch Failed", str(e))
             self.slicer_status_label.configure(text=f"Inventory exported but Slicer launch failed: {e}")
         
-    ##
+    ## Helpers
+    def _find_next_smaller_or_equal_diameter(self, screw_type: str, imported_dia: float):
+        diams = self._get_available_diameters(screw_type)
+        print(f"\n[DIAMETER CHECK] Type={screw_type}")
+        print(f"  Imported diameter: {imported_dia}")
+        print(f"  Available diameters: {diams}")
+
+        if not diams:
+            print("  → No inventory diameters available")
+            return None
+
+        candidates = [d for d in diams if float(d) <= float(imported_dia)]
+        print(f"  Candidates ≤ imported: {candidates}")
+
+        if candidates:
+            chosen = max(candidates)
+            print(f"  → Selected diameter: {chosen}")
+            return chosen
+
+        fallback = min(diams)
+        print(f"  → No smaller diameter, fallback to smallest: {fallback}")
+        return fallback
+
+    def _find_rounded_down_length(self, screw_type: str, diameter: float, imported_length: float):
+        lengths = self._get_available_lengths(screw_type, diameter)
+
+        target_length = int(float(imported_length) - 5)
+
+        print(f"\n[LENGTH CHECK] Type={screw_type}, Dia={diameter}")
+        print(f"  Imported length: {imported_length}")
+        print(f"  After -5 mm: {target_length}")
+        print(f"  Available lengths: {lengths}")
+
+        if not lengths:
+            print("  → No inventory lengths available")
+            return None
+
+        candidates = [L for L in lengths if int(L) <= target_length]
+        print(f"  Candidates ≤ adjusted: {candidates}")
+
+        if candidates:
+            chosen = max(candidates)
+            print(f"  → Selected length: {chosen}")
+            return chosen
+
+        fallback = min(lengths)
+        print(f"  → No smaller length, fallback to smallest: {fallback}")
+        return fallback
+
+    def _normalize_imported_screw_to_inventory(self, screw_type: str, diameter_mm, length_mm):
+        try:
+            imported_dia = float(diameter_mm)
+            imported_len = float(length_mm)
+        except Exception:
+            return None, None
+
+        matched_dia = self._find_next_smaller_or_equal_diameter(screw_type, imported_dia)
+        if matched_dia is None:
+            return None, None
+
+        matched_len = self._find_rounded_down_length(screw_type, matched_dia, imported_len)
+        if matched_len is None:
+            return None, None
+
+        return matched_dia, matched_len
+
+    def _postprocess_imported_screws(self):
+        if not self._inventory_loaded():
+            return
+
+        ap = self.app.plan_data.get("anchor_planning", {})
+        anchors = ap.get("anchors", {})
+        if not isinstance(anchors, dict):
+            return
+
+        for _level, sides in anchors.items():
+            if not isinstance(sides, dict):
+                continue
+
+            for side in ("left", "right"):
+                a = sides.get(side, {})
+                if not isinstance(a, dict):
+                    continue
+
+                if (a.get("anchor_type") or "").strip() != "Screw":
+                    continue
+
+                screw_type = (a.get("screw_type") or "").strip()
+                dia_raw = a.get("diameter_mm")
+                len_raw = a.get("length_mm")
+
+                if not screw_type or dia_raw in (None, "") or len_raw in (None, ""):
+                    continue
+
+                new_dia, new_len = self._normalize_imported_screw_to_inventory(
+                    screw_type=screw_type,
+                    diameter_mm=dia_raw,
+                    length_mm=len_raw,
+                )
+
+                if new_dia is None or new_len is None:
+                    continue
+
+                a["diameter_mm"] = str(new_dia)
+                a["length_mm"] = str(int(new_len))
 
     def _on_import_screw_info(self):
         success, message = import_screw_info_into_plan_data(self.app.plan_data)
-        print("Inventory loaded at import time:", self._inventory_loaded())  # <-- add this
+        print("Inventory loaded at import time:", self._inventory_loaded())
 
         if success:
             self.app.is_dirty = True
+
+            # Adjust imported screw selections to hospital inventory rules:
+            # 1. decrease length by 5 mm, then round down to nearest available length
+            # 2. decrease diameter to next smaller available diameter
+            self._postprocess_imported_screws()
+
             # Tear down existing rows and rebuild from the freshly written plan_data
             self._loading_state = True
             try:
@@ -1157,6 +1267,8 @@ class Page10AnchorSelection:
             self._restore_from_plan_data()
             self._update_remove_buttons()
             self._update_inventory_warnings()
-            self.slicer_status_label.configure(text="Screw selections imported from 4D Slicer.")
+            self.slicer_status_label.configure(
+                text="Screw selections imported from 4D Slicer and adjusted to available inventory."
+            )
         else:
             self.slicer_status_label.configure(text=f"Import failed: {message}")

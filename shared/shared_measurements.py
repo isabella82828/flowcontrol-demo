@@ -5,7 +5,11 @@ SHARED_FOLDER = r"C:\ProgramData\FlowControl\exchange"
 
 
 def get_latest_patient_folder(shared_root: str = SHARED_FOLDER) -> str | None:
+    print("SHARED ROOT:", shared_root)
+
     dicom_root = os.path.join(shared_root, "dicom")
+    print("DICOM ROOT:", dicom_root)
+
     if not os.path.exists(dicom_root):
         return None
 
@@ -13,6 +17,9 @@ def get_latest_patient_folder(shared_root: str = SHARED_FOLDER) -> str | None:
     if not folders:
         return None
 
+    latest = max(folders, key=lambda f: f.stat().st_mtime).path
+    print("Selected latest patient folder:", latest)
+    return latest
     return max(folders, key=lambda f: f.stat().st_mtime).path
 
 
@@ -117,15 +124,32 @@ def import_slicer_measurements_into_plan_data(plan_data: dict, shared_root: str 
 
     return True, f"Imported Slicer measurements from:\n{csv_path}"
 
+
 def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
+    print("Looking for screw file...")
+
     patient_folder = get_latest_patient_folder(shared_root)
-    if not patient_folder:
+    print("Patient folder used:", patient_folder)
+
+    if not patient_folder or not os.path.exists(patient_folder):
         return None
 
-    csv_path = os.path.join(patient_folder, "screw_info.csv")
-    if not os.path.exists(csv_path):
+    files = os.listdir(patient_folder)
+    print("Files in patient folder:", files)
+
+    candidates = [f for f in files if f.endswith("_Screw_Selections.csv")]
+    print("Matching screw selection files:", candidates)
+
+    if not candidates:
         return None
 
+    candidates.sort(
+        key=lambda f: os.path.getmtime(os.path.join(patient_folder, f)),
+        reverse=True
+    )
+
+    csv_path = os.path.join(patient_folder, candidates[0])
+    print("Using screw selection file:", csv_path)
     return csv_path
 
 
