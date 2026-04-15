@@ -117,7 +117,7 @@ class MultiSelectDropdown(tk.Frame):
         tk.Button(btn_row, text="Done", font=FONT, command=self._close_popup).pack(side="right", padx=8, pady=8)
 
         # Close on focus out
-        self.popup.bind("<FocusOut>", lambda e: self._close_popup())
+        # self.popup.bind("<FocusOut>", lambda e: self._close_popup())
         self.popup.focus_force()
 
     def _close_popup(self):
@@ -1301,13 +1301,18 @@ class FlowbiWanApp:
         self.result_labels["liv"].set(results.get("liv", "—"))
 
         self._set_text_widget(self.result_labels["uiv_rationale"], results.get("uiv_rationale", ""))
-        self._set_text_widget(self.result_labels["liv_rationale"], results.get("liv_rationale", ""))
+
+        liv_reason = results.get("liv_rationale", "") or ""
+        liv_warning = results.get("liv_warning", "") or ""
+        liv_text = liv_reason if not liv_warning else f"{liv_reason}\n{liv_warning}"
+
+        self._set_text_widget(self.result_labels["liv_rationale"], liv_text)
         self._set_text_widget(self.result_labels["stf_evaluation"], results.get("stf_reasons", []))
         self._set_text_widget(self.result_labels["slf_evaluation"], results.get("slf_reason", ""))
 
         self.stf_status_var.set(f"Eligible: {results.get('stf_eligible', '—')}")
         self.slf_status_var.set(f"Eligible: {results.get('slf_eligible', '—')}")
-        
+
     # --- Save Plan ---
     def save_and_exit_plan(self):
         if "level_selection" not in self.plan_data:
@@ -1618,6 +1623,7 @@ class FlowbiWanApp:
         # --- LIV (logic) ---
         final_liv = ""
         liv_rationale = ""
+        liv_warning = ""
 
         if lenke in ("Lenke 1", "Lenke 2"):
             if lumbar_modifier == "A":
@@ -1653,10 +1659,48 @@ class FlowbiWanApp:
             else:
                 final_liv = "L3"
                 liv_rationale = "L3: No risk criteria"
-        
+    
         final_liv = self._resolve_level_token(final_liv)
 
-        print("[LEBEL] LIV:", final_liv, "|", liv_rationale)
+        # --- S1 plumb line distal check ---
+        s1_l3 = (additional_sag.get("s1_plumb_line_l3_relation") or "").strip()
+        s1_l4 = (additional_sag.get("s1_plumb_line_l4_relation") or "").strip()
+        s1_l5 = (additional_sag.get("s1_plumb_line_l5_relation") or "").strip()
+
+        s1_relation_by_level = {
+            "L3": s1_l3,
+            "L4": s1_l4,
+            "L5": s1_l5,
+        }
+
+        vertebra_order = {
+            "T1": 1, "T2": 2, "T3": 3, "T4": 4, "T5": 5, "T6": 6, "T7": 7, "T8": 8, "T9": 9, "T10": 10, "T11": 11, "T12": 12,
+            "L1": 13, "L2": 14, "L3": 15, "L4": 16, "L5": 17,
+        }
+
+        if final_liv and final_liv != "—":
+            current_rank = vertebra_order.get(final_liv, -999)
+
+            for check_level in ["L3", "L4", "L5"]:
+                check_rank = vertebra_order.get(check_level, -999)
+                if check_rank < current_rank:
+                    continue
+
+                rel = s1_relation_by_level.get(check_level, "")
+                if not rel:
+                    continue
+
+                if rel in ("Intersected", "Anterior"):
+                    if check_level != final_liv:
+                        old_liv = final_liv
+                        final_liv = check_level
+                        liv_warning = (
+                            f"S1 plumb line check adjusted LIV distally from {old_liv} to {check_level}. "
+                            f"Please review sagittal alignment."
+                        )
+                    break
+
+        print("[LEBEL] LIV:", final_liv, "|", liv_rationale, "|", liv_warning)
 
         # --- SLF (Lenke 5/6 + lumbar C) ---
         slf_eligible = "No"
@@ -1693,6 +1737,7 @@ class FlowbiWanApp:
             "liv": final_liv or "—",
             "uiv_rationale": uiv_rationale,
             "liv_rationale": liv_rationale,
+            "liv_warning": liv_warning,
             "stf_eligible": stf_eligible,
             "stf_reasons": stf_reasons,
             "slf_eligible": slf_eligible,

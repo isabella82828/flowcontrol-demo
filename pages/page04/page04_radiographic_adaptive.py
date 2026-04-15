@@ -682,7 +682,7 @@ class Page04RadiographicAdaptive:
            "l4_tilt_direction": add_stand.get("l4_tilt_direction"),
            "sltv": sup.get("sltv"),
            "lstv": stand.get("last_substantially_touched_vertebra"),
-           "mt_ltv": add_stand.get("mt_ltv"),
+           "mt_ltv": stand.get("mt_ltv"),
 
 
            # LIV (Lenke 3–6)
@@ -873,6 +873,7 @@ class Page04RadiographicAdaptive:
                 "uiv_rationale": results.get("uiv_rationale"),
                 "liv": results.get("liv"),
                 "liv_rationale": results.get("liv_rationale"),
+                "liv_warning": results.get("liv_warning"),
                 "stf_eligible": results.get("stf_eligible"),
                 "stf_reasons": results.get("stf_reasons"),
                 "slf_eligible": results.get("slf_eligible"),
@@ -1009,6 +1010,7 @@ class Page04RadiographicAdaptive:
             "uiv_rationale": results.get("uiv_rationale"),
             "liv": results.get("liv"),
             "liv_rationale": results.get("liv_rationale"),
+            "liv_warning": results.get("liv_warning"),
             "stf_eligible": results.get("stf_eligible"),
             "stf_reasons": results.get("stf_reasons"),
             "slf_eligible": results.get("slf_eligible"),
