@@ -2662,17 +2662,35 @@ class FlowbiWanApp:
     def _build_tab_blood_conservation(self, frame):
         blood = self.plan_data.setdefault("blood_conservation", {})
 
-        # TXA (leave dose entry fields, set per-protocol)
+        # TXA
         txa_on = tk.BooleanVar(value=blood.get("txa_on", True))
         txa_frame = ttk.LabelFrame(frame, text="Tranexamic Acid")
         txa_frame.pack(fill="x", pady=(8,6))
-        ttk.Checkbutton(txa_frame, text="Enable TXA", variable=txa_on).pack(anchor="w", padx=8, pady=(8,4))
+        # ttk.Checkbutton(txa_frame, text="Enable TXA", variable=txa_on).pack(anchor="w", padx=8, pady=(8,4))
 
-        txa_row = ttk.Frame(txa_frame); txa_row.pack(fill="x", padx=8, pady=(0,8))
-        txa_bolus = tk.StringVar(value=blood.get("txa_bolus_mg_per_kg", ""))       # e.g., "10"
-        txa_infusion = tk.StringVar(value=blood.get("txa_infusion_mg_per_kg_hr", ""))  # e.g., "1"
-        ttk.Label(txa_row, text="Bolus (mg/kg):").pack(side="left"); ttk.Entry(txa_row, textvariable=txa_bolus, width=8).pack(side="left", padx=(4,16))
-        ttk.Label(txa_row, text="Infusion (mg/kg/hr):").pack(side="left"); ttk.Entry(txa_row, textvariable=txa_infusion, width=8).pack(side="left", padx=4)
+        txa_row = ttk.Frame(txa_frame)
+        txa_row.pack(fill="x", padx=8, pady=(0,8))
+
+        # 10–30 mg/kg IV up to a maximum of 2 g
+        # Use 20 mg/kg as the planner default
+        txa_bolus = tk.StringVar(value=blood.get("txa_bolus_mg_per_kg", "20"))
+        txa_infusion = tk.StringVar(value=blood.get("txa_infusion_mg_per_kg_hr", ""))
+
+        txa_calc_label = ttk.Label(txa_frame, text="", justify="left")
+        txa_calc_label.pack(anchor="w", padx=8, pady=(0,8))
+
+        ttk.Label(txa_row, text="Bolus (mg/kg):").pack(side="left")
+        ttk.Entry(txa_row, textvariable=txa_bolus, width=8).pack(side="left", padx=(4,16))
+
+        ttk.Label(txa_row, text="Infusion (mg/kg/hr):").pack(side="left")
+        ttk.Entry(txa_row, textvariable=txa_infusion, width=8).pack(side="left", padx=4)
+
+        ttk.Label(
+            txa_frame,
+            text="Bolus recommendation: 10–30 mg/kg IV, maximum 2000 mg. Default set to 20 mg/kg.",
+            justify="left"
+        ).pack(anchor="w", padx=8, pady=(0,8))
+
 
         # Cell Saver
         cell_on = tk.BooleanVar(value=blood.get("cell_saver_on", True))
@@ -2740,6 +2758,26 @@ class FlowbiWanApp:
         notes_ent = ttk.Entry(infil, textvariable=notes_var); notes_ent.pack(fill="x", padx=8, pady=(0,8))
 
 
+        def refresh_txa_calc(*_):
+            try:
+                weight_kg = float(self.plan_data.get("patient", {}).get("weight_kg", 0))
+                bolus_mg_per_kg = float(txa_bolus.get())
+                calculated_mg = weight_kg * bolus_mg_per_kg
+                capped_mg = min(calculated_mg, 2000)
+
+                if calculated_mg > 2000:
+                    txa_calc_label.config(
+                        text=f"Calculated bolus: {capped_mg:.0f} mg (capped at 2000 mg)"
+                    )
+                else:
+                    txa_calc_label.config(
+                        text=f"Calculated bolus: {capped_mg:.0f} mg"
+                    )
+            except Exception:
+                txa_calc_label.config(
+                    text="Calculated bolus: enter a valid bolus dose to display mg amount"
+                )
+                
         def _compute_infiltration_text():
             """Uses your spec: Bupi 0.5% 1 mg/kg (5 mg/ml); Lido 1% 2 mg/kg (10 mg/ml); Epi 5 mcg/ml × total vol; + 200 ml NS."""
             try:
@@ -2767,6 +2805,7 @@ class FlowbiWanApp:
             )
 
         def refresh_outputs(*_):
+            refresh_txa_calc()
             out.configure(text=_compute_infiltration_text())
             persist()
 
