@@ -1062,36 +1062,29 @@ class Page10AnchorSelection:
     # Slicer launching
     # -------------------------
     def _find_slicer_exe(self) -> str:
-        import glob
-        import os
-
-        # Check saved path first
-        saved = self.app.plan_data.get("slicer_path", "")
+        saved = self.app.plan_data.get("slicer_path", "").strip()
         if saved and os.path.exists(saved):
             return saved
 
-        username = os.getlogin()
-
-        candidates = [
-            # ✅ YOUR EXACT FOLDER + correct exe name
-            rf"C:\Users\{username}\4D Slicer v1.2\Slicer.exe",
-
-            # More flexible (future-proof)
-            rf"C:\Users\{username}\4D Slicer*\Slicer.exe",
-
-            # Existing ones (keep these)
-            rf"C:\Users\{username}\AppData\Local\slicer.org\*\Slicer.exe",
-            r"C:\Program Files\*\Slicer.exe",
-            r"C:\Program Files (x86)\*\Slicer.exe",
+        possible_paths = [
+            os.path.join(
+                os.environ.get("ProgramFiles", r"C:\Program Files"),
+                "4D Slicer v2.0",
+                "Slicer.exe",
+            ),
+            os.path.join(
+                os.environ.get("LOCALAPPDATA", ""),
+                "slicer.org",
+                "4D Slicer v2.0",
+                "Slicer.exe",
+            ),
         ]
 
-        for pattern in candidates:
-            matches = glob.glob(pattern)
-            if matches:
-                return matches[0]
+        for path in possible_paths:
+            if path and os.path.exists(path):
+                return path
 
         return ""
-
     def _on_browse_slicer(self) -> str:
         from tkinter import filedialog
         path = filedialog.askopenfilename(
@@ -1103,6 +1096,7 @@ class Page10AnchorSelection:
             self.app.is_dirty = True
         return path
 
+
     def _on_launch_slicer_and_export(self):
         # Step 1: export inventory to shared folder
         self.slicer_status_label.configure(text="Exporting inventory...")
@@ -1113,27 +1107,39 @@ class Page10AnchorSelection:
             self.slicer_status_label.configure(text=f"Export failed: {msg}")
             return
 
-        # Step 2: launch Slicer
+        # Step 2: find Slicer
         slicer_path = self._find_slicer_exe()
         if not slicer_path:
-            self.slicer_status_label.configure(text="Inventory exported. Slicer not found — please locate it.")
+            self.slicer_status_label.configure(
+                text="Inventory exported. Slicer not found, please locate it."
+            )
             slicer_path = self._on_browse_slicer()
 
         if not slicer_path:
-            self.slicer_status_label.configure(text="Inventory exported. Slicer path not set.")
+            self.slicer_status_label.configure(
+                text="Inventory exported. Slicer path not set."
+            )
             return
 
+        # Step 3: launch in surgery mode
         try:
-            subprocess.Popen([slicer_path])
+            env = os.environ.copy()
+            env["FOURD_SLICER_MODE"] = "surgery"
+
+            subprocess.Popen([slicer_path], env=env)
+
             self.app.plan_data["slicer_path"] = slicer_path
             self.app.is_dirty = True
+
             self.slicer_status_label.configure(
-                text="Inventory exported & 4D Slicer launched. When done, click Import Screw Selections."
+                text="Inventory exported and 4D Slicer launched in surgery mode. When done, click Import Screw Selections."
             )
         except Exception as e:
             messagebox.showerror("Launch Failed", str(e))
-            self.slicer_status_label.configure(text=f"Inventory exported but Slicer launch failed: {e}")
-        
+            self.slicer_status_label.configure(
+                text=f"Inventory exported but Slicer launch failed: {e}"
+            )
+
     ## Helpers
     def _find_next_smaller_or_equal_diameter(self, screw_type: str, imported_dia: float):
         diams = self._get_available_diameters(screw_type)

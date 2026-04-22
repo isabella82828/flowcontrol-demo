@@ -126,7 +126,7 @@ def import_slicer_measurements_into_plan_data(plan_data: dict, shared_root: str 
 
 
 def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
-    print("Looking for screw file...")
+    print("Looking for screw info file...")
 
     patient_folder = get_latest_patient_folder(shared_root)
     print("Patient folder used:", patient_folder)
@@ -134,29 +134,35 @@ def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
     if not patient_folder or not os.path.exists(patient_folder):
         return None
 
-    files = os.listdir(patient_folder)
-    print("Files in patient folder:", files)
+    screws_folder = os.path.join(patient_folder, "screws")
+    print("Screws folder:", screws_folder)
 
-    candidates = [f for f in files if f.endswith("_Screw_Selections.csv")]
-    print("Matching screw selection files:", candidates)
+    if not os.path.exists(screws_folder):
+        return None
+
+    files = os.listdir(screws_folder)
+    print("Files in screws folder:", files)
+
+    candidates = [f for f in files if f.endswith("_Screw_Info.csv")]
+    print("Matching screw info files:", candidates)
 
     if not candidates:
         return None
 
     candidates.sort(
-        key=lambda f: os.path.getmtime(os.path.join(patient_folder, f)),
+        key=lambda f: os.path.getmtime(os.path.join(screws_folder, f)),
         reverse=True
     )
 
-    csv_path = os.path.join(patient_folder, candidates[0])
-    print("Using screw selection file:", csv_path)
+    csv_path = os.path.join(screws_folder, candidates[0])
+    print("Using screw info file:", csv_path)
     return csv_path
 
 
 def import_screw_info_into_plan_data(plan_data: dict, shared_root: str = SHARED_FOLDER) -> tuple[bool, str]:
     csv_path = get_screw_info_csv_path(shared_root)
     if not csv_path:
-        return False, "No screw_info.csv found in the shared patient folder."
+        return False, "No _Screw_Info.csv file found in the patient's screws folder."
 
     rows = []
     try:
@@ -168,7 +174,7 @@ def import_screw_info_into_plan_data(plan_data: dict, shared_root: str = SHARED_
         return False, f"Failed to read screw_info.csv: {e}"
 
     if not rows:
-        return False, f"screw_info.csv is empty: {csv_path}"
+        return False, f"Failed to read screw info CSV: {e}"
 
     ap = plan_data.setdefault("anchor_planning", {})
 

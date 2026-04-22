@@ -3,6 +3,8 @@ from tkinter import ttk
 from typing import Dict, Optional
 import os
 from PIL import Image, ImageTk 
+import subprocess
+from tkinter import messagebox
 
 from pages.page04.logic.lebel_v3 import compute_lebel_v3
 from pages.page04.logic.baldwin_v2 import compute_baldwin_v2
@@ -88,7 +90,15 @@ class Page04RadiographicAdaptive:
        # -----------------------------
        btn_frame = tk.Frame(scrollable, bg=WHITE)
        btn_frame.pack(fill="x", pady=(4, 10), padx=6)
-       
+
+       tk.Button(
+            btn_frame,
+            text="Open 4D Slicer Measurement Module",
+            font=("Segoe UI", 11, "bold"),
+            command=self.on_open_slicer_angle,
+            bg="#E8F0FE"
+        ).pack(side="left", padx=(0, 8))
+
        tk.Button(
             btn_frame,
             text="Import Slicer Measurements",
@@ -1049,3 +1059,50 @@ class Page04RadiographicAdaptive:
            print(message)
        else:
            print(message)
+        
+   def on_open_slicer_angle(self):
+       slicer_path = self.app.plan_data.get("slicer_path", "").strip()
+
+       possible_paths = []
+       if slicer_path:
+           possible_paths.append(slicer_path)
+
+       possible_paths.extend([
+           os.path.join(
+               os.environ.get("ProgramFiles", r"C:\Program Files"),
+               "4D Slicer v2.0",
+               "Slicer.exe",
+           ),
+           os.path.join(
+               os.environ.get("LOCALAPPDATA", ""),
+               "slicer.org",
+               "4D Slicer v2.0",
+               "Slicer.exe",
+           ),
+       ])
+
+       slicer_exe = next((p for p in possible_paths if p and os.path.exists(p)), None)
+
+       if not slicer_exe:
+           messagebox.showerror(
+               "4D Slicer Not Found",
+               "Could not find 4D Slicer.\n\nPlease install it or set the path first."
+           )
+           return
+
+       try:
+           env = os.environ.copy()
+           env["FOURD_SLICER_MODE"] = "angle"
+
+           subprocess.Popen([slicer_exe], env=env)
+
+           self.app.plan_data["slicer_path"] = slicer_exe
+           self.app.is_dirty = True
+
+           messagebox.showinfo(
+               "4D Slicer Opened",
+               "4D Slicer was opened in angle mode.\n\n"
+               "After taking measurements, come back and click 'Import Slicer Measurements'."
+           )
+       except Exception as e:
+           messagebox.showerror("Launch Failed", str(e))
