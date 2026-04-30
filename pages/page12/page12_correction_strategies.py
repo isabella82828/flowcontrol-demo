@@ -27,7 +27,7 @@ class Page12CorrectionStrategies:
         scrollable = self.app.create_standard_page(
             title_text="Rod Bending Instructions",
             back_command=self.app.setup_page_11,
-            next_command=self.app.setup_page_13
+            next_command=self.app.setup_page_14
         )
 
         # ttk.Label(

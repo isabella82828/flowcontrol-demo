@@ -538,16 +538,33 @@ class FlowbiWanApp:
 
         return scrollable_frame
 
+    # def _get_patient_folder_name(self) -> str:
+    #     patient = self.plan_data.get("patient", {})
+    #     op_id = str(patient.get("id") or "unknown").strip()
+    #     raw_date = str(patient.get("surgery_date") or "").strip()
+    #     try:
+    #         # Convert from YYYY-MM-DD to DDMMYYYY
+    #         from datetime import datetime
+    #         ddmmyyyy = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%d%m%Y")
+    #     except Exception:
+    #         ddmmyyyy = "00000000"
+    #     return f"{op_id}{ddmmyyyy}"
+
     def _get_patient_folder_name(self) -> str:
         patient = self.plan_data.get("patient", {})
         op_id = str(patient.get("id") or "unknown").strip()
+
+        # DEMO OVERRIDE
+        if op_id == "138":
+            return "138"
+
         raw_date = str(patient.get("surgery_date") or "").strip()
         try:
-            # Convert from YYYY-MM-DD to DDMMYYYY
             from datetime import datetime
             ddmmyyyy = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%d%m%Y")
         except Exception:
             ddmmyyyy = "00000000"
+
         return f"{op_id}{ddmmyyyy}"
         
     def upload_ct_folder(self):
@@ -936,6 +953,29 @@ class FlowbiWanApp:
             "aim_custom_text": aim_custom,
             "aim_text": ", ".join(aim_text_items),
         })
+
+
+        # --- DEMO FOLDER HANDLING ---
+        patient_id = pid.strip()
+
+        # wherever your shared root is (adjust if needed)
+        dicom_root = os.path.join("C:\\ProgramData\\FlowControl\\exchange\\dicom")
+
+        if patient_id == "138":
+            patient_folder = os.path.join(dicom_root, "138")
+            os.makedirs(patient_folder, exist_ok=True)
+
+            self.plan_data["patient_folder"] = patient_folder
+
+        else:
+            # normal behavior (your existing naming logic)
+            patient_folder_name = self._get_patient_folder_name()
+            patient_folder = os.path.join(dicom_root, patient_folder_name)
+
+            os.makedirs(patient_folder, exist_ok=True)
+
+            self.plan_data["patient_folder"] = patient_folder
+
 
         self.plan_data["logic_source"] = self.logic_var.get()
 
@@ -2553,7 +2593,7 @@ class FlowbiWanApp:
         ttk.Radiobutton(rb_row, text="Methadone pathway", variable=path, value="methadone").pack(side="left")
 
         notes = tk.StringVar(value=pain.get("notes", ""))
-        ttk.Label(frame, text="Notes (optional):").pack(anchor="w", padx=8)
+        ttk.Label(frame, text="Notes:").pack(anchor="w", padx=8)
         entry = ttk.Entry(frame, textvariable=notes); entry.pack(fill="x", padx=8, pady=(0,8))
 
         def persist(*_):
@@ -2841,15 +2881,15 @@ class FlowbiWanApp:
 
         dest = tk.StringVar(value=default_sel)
         rb = ttk.Frame(frame); rb.pack(fill="x", padx=8, pady=(0,8))
-        ttk.Radiobutton(rb, text="5A Constant Observation (Default if AIS)", variable=dest, value="5A_constant_obs")\
+        ttk.Radiobutton(rb, text="5A Constant Observation", variable=dest, value="5A_constant_obs")\
             .pack(anchor="w", pady=2)
         ttk.Radiobutton(rb, text="Pediatric Intensive Care Unit (PICU)", variable=dest, value="PICU")\
             .pack(anchor="w", pady=2)
-        ttk.Radiobutton(rb, text="Overnight Intensive Care Unit (Default if NMS)", variable=dest, value="ICU_overnight")\
+        ttk.Radiobutton(rb, text="Overnight Intensive Care Unit", variable=dest, value="ICU_overnight")\
             .pack(anchor="w", pady=2)
 
         notes = tk.StringVar(value=rec.get("notes", ""))
-        ttk.Label(frame, text="Notes (optional):").pack(anchor="w", padx=8)
+        ttk.Label(frame, text="Notes:").pack(anchor="w", padx=8)
         entry = ttk.Entry(frame, textvariable=notes); entry.pack(fill="x", padx=8, pady=(0,8))
 
         def persist(*_):

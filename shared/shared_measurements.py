@@ -23,9 +23,24 @@ def get_latest_patient_folder(shared_root: str = SHARED_FOLDER) -> str | None:
     return max(folders, key=lambda f: f.stat().st_mtime).path
 
 
-def get_measurements_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
-    patient_folder = get_latest_patient_folder(shared_root)
-    if not patient_folder:
+# def get_measurements_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
+#     patient_folder = get_latest_patient_folder(shared_root)
+#     if not patient_folder:
+#         return None
+
+#     csv_path = os.path.join(patient_folder, "measurements.csv")
+#     if not os.path.exists(csv_path):
+#         return None
+
+#     return csv_path
+
+def get_measurements_csv_path(shared_root: str = SHARED_FOLDER, patient_folder_name: str = None) -> str | None:
+    if patient_folder_name:
+        patient_folder = os.path.join(shared_root, "dicom", patient_folder_name)
+    else:
+        patient_folder = get_latest_patient_folder(shared_root)
+
+    if not patient_folder or not os.path.exists(patient_folder):
         return None
 
     csv_path = os.path.join(patient_folder, "measurements.csv")
@@ -74,16 +89,39 @@ def apply_measurements_to_plan_data(plan_data: dict, measurements: dict) -> bool
         return False
 
     rp = plan_data.setdefault("radiographic_parameters", {})
-    standing_coronal = rp.setdefault("standing_coronal", {})
-    standing_sagittal = rp.setdefault("standing_sagittal", {})
+
 
     mapping = {
+        # Standing coronal
         "PT Cobb": ("standing_coronal", "pt_cobb"),
         "MT Cobb": ("standing_coronal", "mt_cobb"),
         "TL/L Cobb": ("standing_coronal", "tl_l_cobb"),
+        "T1 Tilt": ("standing_coronal", "t1_tilt"),
+        "CSVL at TL/L Apex Position": ("standing_coronal", "csvl_tll_apex_position"),
+        "Risser Score": ("standing_coronal", "risser_score"),
+
+        # Standing sagittal
         "T2-T5 Kyphosis": ("standing_sagittal", "t2_5_kyphosis"),
         "T5-T12 Kyphosis": ("standing_sagittal", "t5_12_kyphosis"),
         "T10-L2 Kyphosis": ("standing_sagittal", "t10_l2_kyphosis"),
+        "PT Apex Level": ("standing_sagittal", "pt_apex_level"),
+
+        # Bending
+        "PT Cobb Bending": ("bending", "pt_cobb"),
+        "MT Cobb Bending": ("bending", "mt_cobb"),
+        "TL/L Cobb Bending": ("bending", "tl_l_cobb"),
+
+        # LIV / sagittal checks
+        "S1 plumb line relation at L3": ("additional_standing_sagittal", "s1_plumb_line_l3_relation"),
+        "S1 plumb line relation at L4": ("additional_standing_sagittal", "s1_plumb_line_l4_relation"),
+        "S1 plumb line relation at L5": ("additional_standing_sagittal", "s1_plumb_line_l5_relation"),
+        "Lumbar apex level": ("standing_sagittal", "lumbar_apex_level"),
+        "Bending L3-L4 Disc Angle": ("additional_bending", "bending_l3_4_disc_angle"),
+        "NV Grade": ("additional_standing_coronal", "nv_grade"),
+
+        # Apical translations
+        "MT apical translation": ("standing_coronal", "mt_apical_translation_mm"),
+        "TL/L Apical Translation": ("standing_coronal", "tll_apical_translation_mm"),
     }
 
     updated = False
@@ -98,53 +136,70 @@ def apply_measurements_to_plan_data(plan_data: dict, measurements: dict) -> bool
         except Exception:
             value = raw_value
 
-        if section == "standing_coronal":
-            if standing_coronal.get(field) != value:
-                standing_coronal[field] = value
-                updated = True
-        elif section == "standing_sagittal":
-            if standing_sagittal.get(field) != value:
-                standing_sagittal[field] = value
-                updated = True
+        section_dict = rp.setdefault(section, {})
+
+        if section_dict.get(field) != value:
+            section_dict[field] = value
+            updated = True
 
     return updated
 
-def import_slicer_measurements_into_plan_data(plan_data: dict, shared_root: str = SHARED_FOLDER) -> tuple[bool, str]:
-    csv_path = get_measurements_csv_path(shared_root)
+def import_slicer_measurements_into_plan_data(
+    plan_data: dict,
+    shared_root: str = SHARED_FOLDER,
+    patient_folder_name: str = None
+) -> tuple[bool, str]:
+
+    csv_path = get_measurements_csv_path(shared_root, patient_folder_name)
     if not csv_path:
-        return False, "No measurements.csv file found in the shared patient folder."
+        return False, "No measurements.csv file found in the patient folder."
 
     measurements = read_measurements_csv(csv_path)
     if not measurements:
         return False, f"No summary measurements found in CSV: {csv_path}"
 
     updated = apply_measurements_to_plan_data(plan_data, measurements)
+
     if not updated:
-        return True, f"CSV read successfully, but no values were changed: {csv_path}"
+        return True, f"CSV read, but no values changed: {csv_path}"
 
     return True, f"Imported Slicer measurements from:\n{csv_path}"
 
-
-def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
+def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER, patient_folder_name: str = None) -> str | None:
     print("Looking for screw info file...")
 
-    patient_folder = get_latest_patient_folder(shared_root)
+    if patient_folder_name:
+        patient_folder = os.path.join(shared_root, "dicom", patient_folder_name)
+    else:
+        patient_folder = get_latest_patient_folder(shared_root)
+
     print("Patient folder used:", patient_folder)
 
     if not patient_folder or not os.path.exists(patient_folder):
         return None
 
+    # --- 1. CHECK ROOT FIRST ---
+    files = os.listdir(patient_folder)
+    root_candidates = [f for f in files if f.endswith("_Screw_Info.csv")]
+
+    if root_candidates:
+        root_candidates.sort(
+            key=lambda f: os.path.getmtime(os.path.join(patient_folder, f)),
+            reverse=True
+        )
+        csv_path = os.path.join(patient_folder, root_candidates[0])
+        print("Using screw info file (root):", csv_path)
+        return csv_path
+
+    # --- 2. FALLBACK TO /screws/ ---
     screws_folder = os.path.join(patient_folder, "screws")
-    print("Screws folder:", screws_folder)
+    print("Checking screws folder:", screws_folder)
 
     if not os.path.exists(screws_folder):
         return None
 
     files = os.listdir(screws_folder)
-    print("Files in screws folder:", files)
-
     candidates = [f for f in files if f.endswith("_Screw_Info.csv")]
-    print("Matching screw info files:", candidates)
 
     if not candidates:
         return None
@@ -155,12 +210,16 @@ def get_screw_info_csv_path(shared_root: str = SHARED_FOLDER) -> str | None:
     )
 
     csv_path = os.path.join(screws_folder, candidates[0])
-    print("Using screw info file:", csv_path)
+    print("Using screw info file (screws folder):", csv_path)
     return csv_path
 
+def import_screw_info_into_plan_data(
+    plan_data: dict,
+    shared_root: str = SHARED_FOLDER,
+    patient_folder_name: str = None
+) -> tuple[bool, str]:
+    csv_path = get_screw_info_csv_path(shared_root, patient_folder_name)
 
-def import_screw_info_into_plan_data(plan_data: dict, shared_root: str = SHARED_FOLDER) -> tuple[bool, str]:
-    csv_path = get_screw_info_csv_path(shared_root)
     if not csv_path:
         return False, "No _Screw_Info.csv file found in the patient's screws folder."
 

@@ -119,21 +119,21 @@ class Page10AnchorSelection:
             command=self.add_level_row
         ).pack(side="left", padx=(0, 8))
 
-        self.btn_remove_top = ttk.Button(
-            btn_row,
-            text="Remove Top",
-            style="Light.TButton",
-            command=self.remove_top_row
-        )
-        self.btn_remove_top.pack(side="left", padx=(12, 8))
+        # self.btn_remove_top = ttk.Button(
+        #     btn_row,
+        #     text="Remove Top",
+        #     style="Light.TButton",
+        #     command=self.remove_top_row
+        # )
+        # self.btn_remove_top.pack(side="left", padx=(12, 8))
 
-        self.btn_remove_bottom = ttk.Button(
-            btn_row,
-            text="Remove Bottom",
-            style="Light.TButton",
-            command=self.remove_bottom_row
-        )
-        self.btn_remove_bottom.pack(side="left")
+        # self.btn_remove_bottom = ttk.Button(
+        #     btn_row,
+        #     text="Remove Bottom",
+        #     style="Light.TButton",
+        #     command=self.remove_bottom_row
+        # )
+        # self.btn_remove_bottom.pack(side="left")
 
         container = ttk.LabelFrame(scrollable, text="Levels and Anchor Planning")
         container.pack(fill="x", pady=(0, 10))
@@ -1247,7 +1247,12 @@ class Page10AnchorSelection:
                 a["length_mm"] = str(int(new_len))
 
     def _on_import_screw_info(self):
-        success, message = import_screw_info_into_plan_data(self.app.plan_data)
+        patient_folder_name = self.app._get_patient_folder_name()
+
+        success, message = import_screw_info_into_plan_data(
+            self.app.plan_data,
+            patient_folder_name=patient_folder_name
+        )
         print("Inventory loaded at import time:", self._inventory_loaded())
 
         if success:

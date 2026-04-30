@@ -1,42 +1,42 @@
 {
   "anaesthesiologist": {
-    "name": "I",
+    "name": "isabella",
     "email": "icrossi@uwaterloo.ca",
     "enabled": true
   },
   "perfusionist": {
     "name": "",
     "email": "",
-    "enabled": false
+    "enabled": true
   },
   "orthopaedic_technologist": {
     "name": "",
     "email": "",
-    "enabled": false
+    "enabled": true
   },
   "scrub_nurse": {
-    "name": "",
-    "email": "",
-    "enabled": false
+    "name": "Olivia",
+    "email": "icrossi@uwaterloo.ca",
+    "enabled": true
   },
   "neurophysiologist": {
     "name": "",
     "email": "",
-    "enabled": false
+    "enabled": true
   },
   "supply_chain_manager": {
     "name": "",
     "email": "",
-    "enabled": false
+    "enabled": true
   },
   "industry_spine_implants": {
     "name": "",
     "email": "",
-    "enabled": false
+    "enabled": true
   },
   "industry_navigation": {
     "name": "",
     "email": "",
-    "enabled": false
+    "enabled": true
   }
 }

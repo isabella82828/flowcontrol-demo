@@ -544,12 +544,12 @@ class Page04RadiographicAdaptive:
        self.liv_36_frame = tk.Frame(sec_liv, bg=WHITE)
        self.liv_36_frame.pack(fill="x")
 
-       add_entry(self.liv_36_frame, "Lumbar apex level (e.g., L1, L2)", "standing_sagittal", "lumbar_apex_level", width=10)
+       add_entry(self.liv_36_frame, "Lumbar apex level", "standing_sagittal", "lumbar_apex_level", width=10)
        add_entry(self.liv_36_frame, "Bending L3-4 disc angle", "additional_bending", "bending_l3_4_disc_angle", width=10)
        
        add_combo(
             self.liv_36_frame,
-            "NV grade (≥ -4 passes)",
+            "NV grade",
             "additional_standing_coronal",
             "nv_grade",
             ["0", "-1", "-2", "-3", "-4"],
@@ -1045,20 +1045,25 @@ class Page04RadiographicAdaptive:
 
    def on_next(self):
        self.app.setup_page_5()
-   
+    
    def on_import_slicer_measurements(self):
-       success, message = import_slicer_measurements_into_plan_data(self.app.plan_data)
+        patient_folder_name = self.app._get_patient_folder_name()
 
-       print("standing_coronal:", self.app.plan_data.get("radiographic_parameters", {}).get("standing_coronal", {}))
-       print("standing_sagittal:", self.app.plan_data.get("radiographic_parameters", {}).get("standing_sagittal", {}))
+        success, message = import_slicer_measurements_into_plan_data(
+            self.app.plan_data,
+            patient_folder_name=patient_folder_name
+        )
 
-       if success:
-           self.app.is_dirty = True
-           self._sync_vars_from_plan_data()
-           self.refresh()
-           print(message)
-       else:
-           print(message)
+        print("standing_coronal:", self.app.plan_data.get("radiographic_parameters", {}).get("standing_coronal", {}))
+        print("standing_sagittal:", self.app.plan_data.get("radiographic_parameters", {}).get("standing_sagittal", {}))
+
+        if success:
+            self.app.is_dirty = True
+            self._sync_vars_from_plan_data()
+            self.refresh()
+            print(message)
+        else:
+            print(message)
         
    def on_open_slicer_angle(self):
        slicer_path = self.app.plan_data.get("slicer_path", "").strip()

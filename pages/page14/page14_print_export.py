@@ -14,7 +14,7 @@ class Page14PrintExport:
     def setup(self):
         scrollable = self.app.create_standard_page(
             title_text="Print Pre-Operative Plan / Operative Report",
-            back_command=self.app.setup_page_13,
+            back_command=self.app.setup_page_12,
             next_command=None,
         )
 
@@ -27,7 +27,7 @@ class Page14PrintExport:
 
         ttk.Label(
             scrollable,
-            text="subtitle",
+            text=" ",
             font=FONT,
             background=WHITE,
             wraplength=560,
@@ -43,14 +43,14 @@ class Page14PrintExport:
             radius=16
         ).pack(anchor="w", pady=8)
 
-        self.app._rounded_button(
-            scrollable,
-            text="Export Operative Report (Word)",
-            command=lambda: export_docx_top_block(self.app.plan_data, kind="op_note"),
-            width=360,
-            height=46,
-            radius=16
-        ).pack(anchor="w", pady=8)
+        # self.app._rounded_button(
+        #     scrollable,
+        #     text="Export Operative Report (Word)",
+        #     command=lambda: export_docx_top_block(self.app.plan_data, kind="op_note"),
+        #     width=360,
+        #     height=46,
+        #     radius=16
+        # ).pack(anchor="w", pady=8)
 
         self.app._rounded_button(
             scrollable,
