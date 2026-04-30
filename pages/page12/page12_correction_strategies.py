@@ -12,10 +12,38 @@ FONT = ("Segoe UI", 12)
 # Placeholder bending data — will be replaced by algorithm output
 # Each tuple: (station_number, left_clicks, right_clicks)
 MOCK_BENDING_DATA = [
-    (1, 3, 2),
-    (2, 5, 4),
-    (3, 3, 3),
-    (4, 2, 2),
+    (1, 1, 1),
+    (2, 6, 6),
+    (3, 5, 5),
+    (4, 5, 5),
+    (5, 5, 5),
+    (6, 4, 4),
+    (7, 2, 2),
+    (8, 2, 2),
+    (9, 4, 4),
+    (10, 3, 3),
+    (11, 2, 2),
+    (12, 1, 1),
+    (13, 1, 1),
+    (14, 1, 1),
+    (15, 2, 2),
+    (16, 2, 2),
+    (17, 3, 3),
+    (18, 2, 2),
+    (19, 2, 2),
+    (20, 1, 1),
+    (21, 1, 1),
+    (22, 2, 2),
+    (23, 2, 2),
+    (24, 3, 3),
+    (25, 4, 4),
+    (26, 3, 3),
+    (27, 2, 2),
+    (28, 2, 2),
+    (29, 3, 3),
+    (30, 3, 3),
+    (31, 4, 4),
+    (32, 1, 1),
 ]
 
 
@@ -157,14 +185,27 @@ class Page12CorrectionStrategies:
             font=("Segoe UI", 11, "bold")
         )
 
+        positions = [
+            0.00, 10.19, 20.39, 30.58, 40.77, 50.97, 61.16, 71.35,
+            81.55, 91.74, 101.94, 112.13, 122.32, 132.52, 142.71, 152.90,
+            163.10, 173.29, 183.48, 193.68, 203.87, 214.06, 224.26, 234.45,
+            244.65, 254.84, 265.03, 275.23, 285.42, 295.61, 305.81, 316.00
+        ]
+
         for i, (station, left_clicks, right_clicks) in enumerate(bending_data):
             tag = "odd" if i % 2 == 0 else "even"
+
+            position = positions[i] if i < len(positions) else 0.0
+
+            station_text = f"Station {station}: {position:.2f} mm"
+
             tree.insert(
                 "", "end",
-                values=(f"Station {station}", left_clicks, right_clicks),
+                values=(station_text, left_clicks, right_clicks),
                 tags=(tag,)
             )
 
+            
         # Totals row
         tree.insert(
             "", "end",

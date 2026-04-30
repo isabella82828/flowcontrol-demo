@@ -11,8 +11,8 @@ LOGO_GREEN = "#036160"
 FONT = ("Segoe UI", 12)
 
 # Default predicted lengths shown as placeholders until Brian's software is integrated
-DEFAULT_PREDICTED_LEFT_MM = 450.0
-DEFAULT_PREDICTED_RIGHT_MM = 460.0
+DEFAULT_PREDICTED_LEFT_MM = 316.0
+DEFAULT_PREDICTED_RIGHT_MM = 316.0
 
 
 class Page11RodSelection:

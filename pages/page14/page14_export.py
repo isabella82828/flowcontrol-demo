@@ -216,7 +216,7 @@ def build_top_block(doc: Document, plan_data: dict):
 
     add_blood_conservation_section_to_doc(doc, plan_data)
 
-    add_correction_techniques_section_to_doc(doc, plan_data)
+    # add_correction_techniques_section_to_doc(doc, plan_data)
     add_post_op_pain_reduction_section_to_doc(doc, plan_data)
     add_post_op_destination_section_to_doc(doc, plan_data)
 
@@ -886,10 +886,10 @@ def _add_underlined_section_title(doc, title: str):
     _tight_paragraph(p, space_after=0)
     return p
 
-def add_correction_techniques_section_to_doc(doc, plan_data):
-    _add_underlined_section_title(doc, "Correction techniques:")
-    p = doc.add_paragraph("Coming soon")
-    _tight_paragraph(p, space_after=6)
+# def add_correction_techniques_section_to_doc(doc, plan_data):
+#     _add_underlined_section_title(doc, "Correction techniques:")
+#     p = doc.add_paragraph("Coming soon")
+#     _tight_paragraph(p, space_after=6)
 
 
 def add_post_op_pain_reduction_section_to_doc(doc, plan_data):
